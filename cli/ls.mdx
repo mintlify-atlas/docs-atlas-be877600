@@ -1,0 +1,266 @@
+---
+title: ls
+description: List downloads or show details for a specific download
+---
+
+The `ls` command displays all downloads or detailed information about a specific download by ID.
+
+## Usage
+
+```bash
+surge ls [id]
+```
+
+## Aliases
+
+- `l`
+
+```bash
+surge l
+```
+
+## Description
+
+Lists downloads from the running server or local database. The command:
+
+- Shows a table view of all downloads with status, progress, and speed
+- Can display detailed information for a single download by ID
+- Supports JSON output for scripting and automation
+- Can watch and refresh the list in real-time
+- Falls back to database when no server is running
+
+## Arguments
+
+<ParamField path="id" type="string" optional>
+  Download ID (full or partial) to show detailed information. If omitted, lists all downloads.
+  
+  Example:
+  ```bash
+  surge ls abc12345
+  ```
+  
+  You can use partial IDs - Surge will resolve to the full ID:
+  ```bash
+  surge ls abc
+  ```
+</ParamField>
+
+## Flags
+
+<ParamField path="--json" type="boolean" default="false">
+  Output in JSON format for parsing by scripts and tools.
+  
+  Example:
+  ```bash
+  surge ls --json
+  ```
+</ParamField>
+
+<ParamField path="--watch" type="boolean" default="false">
+  Watch mode: continuously refresh the list every second. Press Ctrl+C to exit.
+  
+  Example:
+  ```bash
+  surge ls --watch
+  ```
+</ParamField>
+
+## Examples
+
+### List All Downloads
+
+```bash
+surge ls
+```
+
+Output:
+```
+ID        FILENAME                  STATUS      PROGRESS  SPEED      SIZE
+--        --------                  ------      --------  -----      ----
+abc12345  ubuntu-22.04.iso          active      45.2%     12.3 MB/s  3.6 GB
+def67890  file.zip                  completed   100.0%    -          1.2 GB
+ghi11121  video.mp4                 paused      23.7%     -          850 MB
+```
+
+### Show Download Details
+
+Using full ID:
+```bash
+surge ls abc12345-6789-1234-5678-90abcdef1234
+```
+
+Using partial ID:
+```bash
+surge ls abc12345
+```
+
+Output:
+```
+ID:         abc12345-6789-1234-5678-90abcdef1234
+URL:        https://releases.ubuntu.com/22.04/ubuntu-22.04-desktop-amd64.iso
+Filename:   ubuntu-22.04-desktop-amd64.iso
+Status:     active
+Progress:   45.2%
+Downloaded: 1.6 GB / 3.6 GB
+Speed:      12.3 MB/s
+```
+
+### JSON Output
+
+List all downloads:
+```bash
+surge ls --json
+```
+
+Output:
+```json
+[
+  {
+    "id": "abc12345-6789-1234-5678-90abcdef1234",
+    "filename": "ubuntu-22.04.iso",
+    "status": "active",
+    "progress": 45.2,
+    "total_size": 3865051136,
+    "downloaded": 1747626393,
+    "speed": 12.3
+  },
+  {
+    "id": "def67890-1234-5678-90ab-cdef12345678",
+    "filename": "file.zip",
+    "status": "completed",
+    "progress": 100.0,
+    "total_size": 1288490188,
+    "downloaded": 1288490188,
+    "speed": 0
+  }
+]
+```
+
+Single download details:
+```bash
+surge ls abc12345 --json
+```
+
+Output:
+```json
+{
+  "id": "abc12345-6789-1234-5678-90abcdef1234",
+  "url": "https://releases.ubuntu.com/22.04/ubuntu-22.04-desktop-amd64.iso",
+  "filename": "ubuntu-22.04-desktop-amd64.iso",
+  "status": "active",
+  "progress": 45.2,
+  "total_size": 3865051136,
+  "downloaded": 1747626393,
+  "speed": 12.3
+}
+```
+
+### Watch Mode
+
+Continuously monitor downloads:
+
+```bash
+surge ls --watch
+```
+
+The screen will refresh every second showing updated progress. Press Ctrl+C to exit.
+
+### Using Alias
+
+```bash
+surge l
+surge l abc12345
+```
+
+## Output Fields
+
+### Table View
+
+| Column | Description |
+|--------|-------------|
+| ID | First 8 characters of download UUID |
+| FILENAME | Download filename (truncated to 25 chars) |
+| STATUS | Current status (active, paused, completed, error, queued) |
+| PROGRESS | Download progress percentage |
+| SPEED | Current download speed (only shown for active downloads) |
+| SIZE | Total file size in human-readable format |
+
+### Detail View
+
+| Field | Description |
+|-------|-------------|
+| ID | Full download UUID |
+| URL | Source URL |
+| Filename | Full filename |
+| Status | Current status |
+| Progress | Percentage complete |
+| Downloaded | Downloaded bytes / Total bytes |
+| Speed | Current speed (active downloads only) |
+| Error | Error message (if status is error) |
+
+## Status Values
+
+- **active** - Currently downloading
+- **queued** - Waiting to start
+- **paused** - Manually paused
+- **completed** - Download finished successfully
+- **error** - Download failed with error
+
+## Data Sources
+
+### Priority
+
+1. **Running Server** - If a Surge server is detected, fetches live data via API
+2. **Database** - Falls back to local database if no server is running
+
+### Remote Servers
+
+When using `--host`, only queries the remote server:
+
+```bash
+surge ls --host 192.168.1.100:1700
+```
+
+<Note>
+If `--host` is specified but the connection fails, the command will not fall back to the local database.
+</Note>
+
+## Scripting Examples
+
+### Parse JSON with jq
+
+Get all completed downloads:
+
+```bash
+surge ls --json | jq '.[] | select(.status == "completed")'
+```
+
+Count active downloads:
+
+```bash
+surge ls --json | jq '[.[] | select(.status == "active")] | length'
+```
+
+Get total downloaded bytes:
+
+```bash
+surge ls --json | jq '[.[] | .downloaded] | add'
+```
+
+### Monitor Specific Download
+
+Watch a specific download until complete:
+
+```bash
+while true; do
+  surge ls abc12345 --json | jq -r '.status'
+  sleep 2
+done
+```
+
+## Related Commands
+
+- [surge add](/cli/add) - Add new downloads
+- [surge pause](/cli/pause) - Pause downloads
+- [surge resume](/cli/resume) - Resume downloads
+- [surge rm](/cli/rm) - Remove downloads

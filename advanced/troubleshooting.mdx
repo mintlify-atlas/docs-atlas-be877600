@@ -1,0 +1,625 @@
+---
+title: Troubleshooting
+description: Common issues and solutions for Surge download manager
+---
+
+This guide covers common issues you might encounter when using Surge and their solutions.
+
+## Server Already Running
+
+### Problem
+
+```
+Error: Surge server is already running.
+```
+
+This occurs when you try to start a server instance while another is already active.
+
+### Solution
+
+<Steps>
+  <Step title="Check if server is running">
+    ```bash
+    surge server status
+    ```
+  </Step>
+  
+  <Step title="Stop the existing server">
+    ```bash
+    surge server stop
+    ```
+    
+    Or find and kill the process manually:
+    ```bash
+    # Linux/macOS
+    ps aux | grep surge
+    kill <pid>
+    
+    # Windows
+    tasklist | findstr surge
+    taskkill /PID <pid> /F
+    ```
+  </Step>
+  
+  <Step title="Start the server again">
+    ```bash
+    surge server
+    ```
+  </Step>
+</Steps>
+
+<Info>
+Surge uses a lock file to prevent multiple instances. The lock file is located at:
+- Linux/macOS: `~/.config/surge/runtime/surge.lock`
+- Windows: `%APPDATA%\surge\runtime\surge.lock`
+</Info>
+
+### Stale Lock File
+
+If the server crashed without cleaning up, you may have a stale lock file:
+
+```bash
+# Linux/macOS
+rm ~/.config/surge/runtime/surge.lock
+
+# Windows
+del %APPDATA%\surge\runtime\surge.lock
+```
+
+<Warning>
+Only remove the lock file if you're certain no Surge process is running. Check with `surge server status` first.
+</Warning>
+
+## Port Already in Use
+
+### Problem
+
+```
+Error: failed to bind server listener: address already in use
+```
+
+Another application is using Surge's default port (1700).
+
+### Solution
+
+<Accordion title="Option 1: Use a Different Port">
+```bash
+# Start Surge on a custom port
+surge server --port 8080
+
+# Connect to custom port
+surge connect localhost:8080
+
+# CLI commands with custom port
+surge --host localhost:8080 ls
+```
+</Accordion>
+
+<Accordion title="Option 2: Find and Stop the Conflicting Process">
+**Linux/macOS:**
+```bash
+# Find process using port 1700
+lsof -i :1700
+
+# Or with netstat
+netstat -tulpn | grep :1700
+
+# Kill the process
+sudo kill -9 <pid>
+```
+
+**Windows:**
+```powershell
+# Find process using port 1700
+netstat -ano | findstr :1700
+
+# Kill the process
+taskkill /PID <pid> /F
+```
+</Accordion>
+
+<Accordion title="Option 3: Check for Previous Surge Instance">
+```bash
+# Check server status
+surge server status
+
+# Stop if running
+surge server stop
+```
+</Accordion>
+
+## Connection Refused
+
+### Problem
+
+```
+Error: surge is not running locally. start it or pass --host (or set SURGE_HOST)
+```
+
+or
+
+```
+Error: failed to connect to server: connection refused
+```
+
+### Solution
+
+<Steps>
+  <Step title="Verify server is running">
+    ```bash
+    surge server status
+    ```
+  </Step>
+  
+  <Step title="Start the server if needed">
+    ```bash
+    surge server
+    ```
+  </Step>
+  
+  <Step title="Check the port file">
+    ```bash
+    # Linux/macOS
+    cat ~/.config/surge/runtime/port
+    
+    # Windows
+    type %APPDATA%\surge\runtime\port
+    ```
+    
+    The file should contain the port number (e.g., `1700`).
+  </Step>
+  
+  <Step title="If connecting remotely, verify host/port">
+    ```bash
+    # Test connection
+    curl http://<server-ip>:1700/health
+    
+    # Should return: {"status":"ok","port":1700}
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+For remote connections, ensure:
+- The server is bound to `0.0.0.0` (Surge does this by default)
+- Firewall allows incoming connections on the port
+- You're using the correct host:port combination
+</Tip>
+
+## Authentication Failed
+
+### Problem
+
+```
+Error: 401 Unauthorized
+```
+
+Your API token is invalid or missing.
+
+### Solution
+
+<Steps>
+  <Step title="Get the correct token">
+    ```bash
+    # On the server machine
+    surge token
+    ```
+  </Step>
+  
+  <Step title="Set the token for CLI commands">
+    ```bash
+    # Option 1: Environment variable
+    export SURGE_TOKEN="your-token-here"
+    
+    # Option 2: Command flag
+    surge --token "your-token-here" ls
+    ```
+  </Step>
+  
+  <Step title="Verify authentication works">
+    ```bash
+    curl http://localhost:1700/list \
+      -H "Authorization: Bearer $(surge token)"
+    ```
+  </Step>
+</Steps>
+
+<Info>
+Token location:
+- Linux/macOS: `~/.config/surge/token`
+- Windows: `%APPDATA%\surge\token`
+</Info>
+
+## Permission Denied
+
+### Problem
+
+```
+Error: permission denied: /path/to/download/file.zip
+```
+
+Surge cannot write to the output directory.
+
+### Solution
+
+<Accordion title="Option 1: Fix Directory Permissions">
+```bash
+# Linux/macOS: Make directory writable
+chmod 755 ~/Downloads
+sudo chown $USER:$USER ~/Downloads
+
+# Verify permissions
+ls -la ~/Downloads
+```
+</Accordion>
+
+<Accordion title="Option 2: Use Different Output Directory">
+```bash
+# Specify writable directory
+surge add https://example.com/file.zip --output ~/Documents
+
+# Or for server mode
+surge server --output ~/Documents
+```
+</Accordion>
+
+<Accordion title="Option 3: Run with Appropriate Privileges (Not Recommended)">
+```bash
+# Linux/macOS (avoid if possible)
+sudo surge server
+
+# Better: Create downloads directory with proper ownership
+mkdir -p ~/surge-downloads
+surge server --output ~/surge-downloads
+```
+</Accordion>
+
+<Warning>
+Avoid running Surge as root/administrator unless absolutely necessary. Instead, fix directory permissions or use a different output path.
+</Warning>
+
+## Database Locked
+
+### Problem
+
+```
+Error: database is locked
+```
+
+Multiple processes are trying to access Surge's database simultaneously.
+
+### Solution
+
+<Steps>
+  <Step title="Stop all Surge instances">
+    ```bash
+    # Stop server
+    surge server stop
+    
+    # Check for other processes
+    ps aux | grep surge
+    ```
+  </Step>
+  
+  <Step title="Wait a few seconds">
+    The database lock should release automatically.
+  </Step>
+  
+  <Step title="Restart Surge">
+    ```bash
+    surge server
+    ```
+  </Step>
+</Steps>
+
+If the problem persists:
+
+```bash
+# Check for stale database locks
+ls -la ~/.config/surge/*.db*
+
+# Remove lock files (only if no Surge process is running!)
+rm ~/.config/surge/*.db-shm
+rm ~/.config/surge/*.db-wal
+```
+
+## Download Stuck or Not Starting
+
+### Problem
+
+Download shows `pending` or `downloading` but makes no progress.
+
+### Solution
+
+<Steps>
+  <Step title="Check download details">
+    ```bash
+    surge ls <download-id> --json
+    ```
+    
+    Look for error messages in the output.
+  </Step>
+  
+  <Step title="Verify the URL is accessible">
+    ```bash
+    curl -I https://example.com/file.zip
+    ```
+    
+    Check for:
+    - 200 OK response
+    - Content-Length header
+    - No authentication requirements
+  </Step>
+  
+  <Step title="Try pausing and resuming">
+    ```bash
+    surge pause <download-id>
+    surge resume <download-id>
+    ```
+  </Step>
+  
+  <Step title="If URL expired, refresh it">
+    ```bash
+    surge refresh <download-id> https://new-url.com/file.zip
+    surge resume <download-id>
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+For cloud storage links (Google Drive, OneDrive, S3):
+- URLs often expire after a few hours
+- Generate a fresh download link
+- Use the `refresh` command to update without losing progress
+</Tip>
+
+## SSL/TLS Certificate Errors
+
+### Problem
+
+```
+Error: x509: certificate signed by unknown authority
+```
+
+### Solution
+
+<Accordion title="Update System Certificates">
+**Linux (Debian/Ubuntu):**
+```bash
+sudo apt update
+sudo apt install ca-certificates
+sudo update-ca-certificates
+```
+
+**Linux (RHEL/Fedora):**
+```bash
+sudo yum update ca-certificates
+```
+
+**macOS:**
+```bash
+brew install ca-certificates
+```
+</Accordion>
+
+<Accordion title="Skip Certificate Verification (Not Recommended)">
+For testing or internal servers only:
+
+```bash
+# This is insecure - use only for trusted internal networks
+export GODEBUG=x509ignoreCN=0
+surge add https://untrusted.example.com/file.zip
+```
+</Accordion>
+
+## High Memory Usage
+
+### Problem
+
+Surge consumes excessive RAM during downloads.
+
+### Solution
+
+<Steps>
+  <Step title="Reduce concurrent downloads">
+    Pause some downloads to free up resources:
+    ```bash
+    surge pause --all
+    surge resume <specific-id>
+    ```
+  </Step>
+  
+  <Step title="Reduce worker count (if supported in config)">
+    Edit Surge configuration to limit workers per download:
+    ```bash
+    # Check current settings
+    surge ls <download-id> --json | jq .workers
+    ```
+  </Step>
+  
+  <Step title="Restart Surge periodically">
+    For long-running server instances:
+    ```bash
+    surge pause --all
+    surge server stop
+    surge server
+    surge resume --all
+    ```
+  </Step>
+</Steps>
+
+<Info>
+Memory usage is typically proportional to:
+- Number of concurrent downloads
+- Number of workers per download (up to 32)
+- File buffer sizes
+</Info>
+
+## Disk Space Issues
+
+### Problem
+
+```
+Error: no space left on device
+```
+
+### Solution
+
+<Steps>
+  <Step title="Check available disk space">
+    ```bash
+    # Linux/macOS
+    df -h ~/Downloads
+    
+    # Windows
+    dir
+    ```
+  </Step>
+  
+  <Step title="Free up space">
+    ```bash
+    # Remove completed downloads from queue
+    for id in $(surge ls --json | jq -r '.[] | select(.status == "completed") | .id'); do
+      surge rm $id
+    done
+    ```
+  </Step>
+  
+  <Step title="Change output directory">
+    ```bash
+    # Use a different drive/partition
+    surge add https://example.com/file.zip --output /mnt/external
+    ```
+  </Step>
+</Steps>
+
+<Warning>
+Surge pre-allocates disk space for downloads (when supported by the filesystem). Ensure you have enough free space before starting large downloads.
+</Warning>
+
+## Network Issues
+
+### Problem
+
+Slow speeds, timeouts, or connection drops.
+
+### Solution
+
+<Accordion title="Check Internet Connection">
+```bash
+# Test connectivity
+ping -c 4 8.8.8.8
+
+# Test DNS resolution
+nslookup example.com
+
+# Test download speed
+curl -o /dev/null https://speed.cloudflare.com/__down?bytes=100000000
+```
+</Accordion>
+
+<Accordion title="Use Mirrors">
+```bash
+# Download from multiple sources
+surge add "https://primary.com/file.zip,https://mirror1.com/file.zip,https://mirror2.com/file.zip"
+```
+</Accordion>
+
+<Accordion title="Check Firewall">
+```bash
+# Linux: Check firewall rules
+sudo iptables -L
+sudo ufw status
+
+# Windows: Check Windows Firewall
+netsh advfirewall show allprofiles
+```
+</Accordion>
+
+<Accordion title="Pause and Resume">
+```bash
+# If connection is unstable
+surge pause --all
+# Wait for network to stabilize
+surge resume --all
+```
+</Accordion>
+
+## Configuration File Errors
+
+### Problem
+
+```
+Error: failed to load config
+```
+
+### Solution
+
+<Steps>
+  <Step title="Locate config files">
+    ```bash
+    # Linux/macOS
+    ls -la ~/.config/surge/
+    
+    # Windows
+    dir %APPDATA%\surge
+    ```
+  </Step>
+  
+  <Step title="Backup and reset">
+    ```bash
+    # Linux/macOS
+    mv ~/.config/surge ~/.config/surge.backup
+    surge server  # Creates fresh config
+    
+    # Windows
+    move %APPDATA%\surge %APPDATA%\surge.backup
+    surge server
+    ```
+  </Step>
+  
+  <Step title="Restore settings if needed">
+    Copy specific files from backup:
+    ```bash
+    # Restore token only
+    cp ~/.config/surge.backup/token ~/.config/surge/
+    ```
+  </Step>
+</Steps>
+
+## Getting Help
+
+If you're still experiencing issues:
+
+<Steps>
+  <Step title="Enable verbose logging">
+    ```bash
+    surge --verbose server
+    ```
+  </Step>
+  
+  <Step title="Check debug information">
+    ```bash
+    # Server status
+    surge server status
+    
+    # Download details
+    surge ls --json
+    
+    # Version info
+    surge --version
+    ```
+  </Step>
+  
+  <Step title="Report the issue">
+    Visit the [GitHub Issues](https://github.com/surge-downloader/surge/issues) page with:
+    - Surge version (`surge --version`)
+    - Operating system
+    - Full error message
+    - Steps to reproduce
+  </Step>
+</Steps>
+
+<Info>
+For discussions and community support, check out the [GitHub Discussions](https://github.com/surge-downloader/surge/discussions) page.
+</Info>

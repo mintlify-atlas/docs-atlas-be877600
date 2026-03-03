@@ -1,80 +1,304 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Get up and running with Surge in under 5 minutes
 ---
 
-## Get started in three steps
+# Quickstart Guide
 
-Get your documentation site running locally and make your first customization.
+This guide will walk you through downloading your first file with Surge in under 5 minutes.
 
-### Step 1: Set up your local environment
+## Your First Download
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+<Steps>
+  <Step title="Launch the TUI">
+    Simply run `surge` to enter the interactive Terminal User Interface:
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+    ```bash
+    surge
+    ```
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
+    You'll see the Surge dashboard with a beautiful interface showing your download queue, progress, and speed graphs.
     
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    <Info>
+    Surge automatically starts an HTTP API server on port 1700 (or the next available port) for browser extension integration and remote control.
+    </Info>
+  </Step>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+  <Step title="Add a Download">
+    There are several ways to add downloads:
+    
+    **Method 1: Start with URLs (Recommended)**
+    
+    Queue downloads directly when launching:
+    ```bash
+    surge https://example.com/file1.zip https://example.com/file2.zip
+    ```
+    
+    **Method 2: Use a Batch File**
+    
+    Create a text file with URLs (one per line):
+    ```bash
+    # urls.txt
+    https://example.com/file1.zip
+    https://example.com/file2.zip
+    https://example.com/file3.zip
+    ```
+    
+    Then run:
+    ```bash
+    surge --batch urls.txt
+    ```
+    
+    **Method 3: Combine Both**
+    
+    ```bash
+    surge https://example.com/file.zip --batch urls.txt
+    ```
+    
+    <Tip>
+    Surge will automatically start downloading files in parallel based on your configured `MaxConcurrentDownloads` setting.
+    </Tip>
+  </Step>
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+  <Step title="Specify Output Directory">
+    Control where files are downloaded:
+    
+    ```bash
+    surge https://example.com/file.zip --output ~/Downloads
+    ```
+    
+    Or set a default download directory in your settings file at `~/.config/surge/settings.toml`:
+    ```toml
+    [general]
+    default_download_dir = "/home/user/Downloads"
+    ```
+  </Step>
 
-### Step 3: Go live
+  <Step title="Monitor Progress">
+    The TUI shows real-time information:
+    
+    - **Download progress** with percentage and speed
+    - **Active workers** downloading chunks in parallel
+    - **Speed graphs** showing bandwidth utilization
+    - **Queue status** for pending downloads
+    
+    Navigate using keyboard shortcuts:
+    - `↑/↓` - Navigate downloads
+    - `p` - Pause/Resume selected download
+    - `d` - Delete download
+    - `q` - Quit
+  </Step>
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+  <Step title="Wait for Completion">
+    Surge will download your file using multiple parallel connections. When complete, you'll see a success message.
+    
+    Want to exit automatically when done?
+    ```bash
+    surge https://example.com/file.zip --exit-when-done
+    ```
+  </Step>
+</Steps>
 
-## Next steps
+## Advanced Usage
 
-Now that you have your docs running, explore these key features:
+### Download with Multiple Mirrors
 
-<CardGroup cols={2}>
+Speed up downloads by using multiple mirrors simultaneously:
 
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+```bash
+surge "https://mirror1.com/file.zip,https://mirror2.com/file.zip,https://mirror3.com/file.zip"
+```
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+Surge distributes workers across all available mirrors and automatically handles failover if a mirror becomes unavailable.
 </Note>
+
+### Server Mode (Headless)
+
+Run Surge in the background without the TUI—great for servers or Raspberry Pi:
+
+<Steps>
+  <Step title="Start the Server">
+    ```bash
+    surge server
+    ```
+    
+    Or start with a download:
+    ```bash
+    surge server https://example.com/file.zip
+    ```
+  </Step>
+
+  <Step title="Get Your API Token">
+    In another terminal:
+    ```bash
+    surge token
+    ```
+    
+    Save this token—you'll need it for CLI commands and API requests.
+  </Step>
+
+  <Step title="Add Downloads via CLI">
+    Add downloads to the running server:
+    ```bash
+    surge add https://example.com/file.zip
+    ```
+  </Step>
+
+  <Step title="Check Status">
+    List all downloads:
+    ```bash
+    surge ls
+    ```
+  </Step>
+</Steps>
+
+<Info>
+The server binds to `0.0.0.0` by default, making it accessible via `localhost` and your local network IP.
+</Info>
+
+### Remote TUI
+
+Connect to a running Surge daemon from another terminal or machine:
+
+<CodeGroup>
+```bash Local
+# Connect to local server (auto-detected)
+surge connect
+```
+
+```bash Remote
+# Connect to a remote daemon
+surge connect 192.168.1.10:1700 --token <your-token>
+
+# Or use global flags
+surge --host 192.168.1.10:1700 --token <your-token>
+```
+
+```bash Environment Variables
+# Set environment variables for persistent connection
+export SURGE_HOST=192.168.1.10:1700
+export SURGE_TOKEN=your-token-here
+
+# Now all commands connect to the remote server
+surge connect
+surge add https://example.com/file.zip
+surge ls
+```
+</CodeGroup>
+
+<Tip>
+By default, `surge connect` uses `http://` for loopback and private IP targets, and `https://` for public/hostname targets.
+</Tip>
+
+### Resume Interrupted Downloads
+
+Surge automatically saves download state. If interrupted:
+
+```bash
+# Surge auto-resumes paused downloads on startup by default
+surge
+
+# Disable auto-resume
+surge --no-resume
+```
+
+## Browser Extension Integration
+
+Intercept browser downloads and send them straight to Surge:
+
+<Steps>
+  <Step title="Ensure Surge is Running">
+    Start Surge in TUI or server mode:
+    ```bash
+    surge
+    ```
+  </Step>
+
+  <Step title="Install the Extension">
+    **Chrome/Edge/Brave:**
+    1. Clone the Surge repository
+    2. Navigate to `chrome://extensions`
+    3. Enable "Developer mode"
+    4. Click "Load unpacked"
+    5. Select the `extension-chrome` folder
+    
+    **Firefox:**
+    - **Stable**: [Get the Add-on](https://addons.mozilla.org/en-US/firefox/addon/surge/)
+    - **Development**: Load `manifest.json` from `extension-firefox` folder via `about:debugging`
+  </Step>
+
+  <Step title="Start Downloading">
+    Click any download link in your browser—Surge will automatically intercept it and handle the download!
+    
+    <Info>
+    The extension communicates with Surge on port 1700 by default.
+    </Info>
+  </Step>
+</Steps>
+
+## Common Operations
+
+### Global Flags
+
+These flags work with all commands:
+
+```bash
+# Connect to a specific server
+surge --host 192.168.1.10:1700 --token <token> ls
+
+# Enable verbose logging
+surge --verbose
+
+# Specify output directory
+surge --output ~/Downloads https://example.com/file.zip
+```
+
+### CLI Commands Quick Reference
+
+<CodeGroup>
+```bash Start TUI
+surge
+```
+
+```bash Add Download
+surge add https://example.com/file.zip
+```
+
+```bash List Downloads
+surge ls
+```
+
+```bash Server Mode
+surge server
+```
+
+```bash Get Token
+surge token
+```
+
+```bash Connect to Remote
+surge connect 192.168.1.10:1700 --token <token>
+```
+</CodeGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="CLI Reference" icon="terminal" href="/cli/overview">
+    Explore all available commands, flags, and options.
+  </Card>
+  <Card title="Settings Guide" icon="gear" href="/guides/configuration">
+    Configure Surge to match your preferences.
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Integrate Surge with your automation workflows.
+  </Card>
+  <Card title="Optimizations" icon="bolt" href="/concepts/optimizations">
+    Learn how Surge achieves blazing fast speeds.
+  </Card>
+</CardGroup>
+
+<Warning>
+Surge runs a single background "engine." If you try to start Surge while it's already running, you'll get an error. Use `surge add <url>` to add downloads to the active instance instead.
+</Warning>

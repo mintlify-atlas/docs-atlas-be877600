@@ -1,0 +1,135 @@
+---
+title: CLI Overview
+description: Complete reference for all Surge CLI commands
+---
+
+Surge provides a comprehensive command-line interface for managing downloads from the terminal. All commands support both local and remote operation modes.
+
+## Quick Reference
+
+<CardGroup cols={2}>
+  <Card title="surge" icon="terminal" href="/cli/surge">
+    Launch TUI or queue downloads
+  </Card>
+  <Card title="add" icon="plus" href="/cli/add">
+    Add downloads to queue
+  </Card>
+  <Card title="ls" icon="list" href="/cli/ls">
+    List all downloads
+  </Card>
+  <Card title="pause" icon="pause" href="/cli/pause">
+    Pause active downloads
+  </Card>
+  <Card title="resume" icon="play" href="/cli/resume">
+    Resume paused downloads
+  </Card>
+  <Card title="rm" icon="trash" href="/cli/rm">
+    Remove downloads
+  </Card>
+  <Card title="refresh" icon="refresh" href="/cli/refresh">
+    Update download URL
+  </Card>
+  <Card title="server" icon="server" href="/cli/server">
+    Manage headless server
+  </Card>
+  <Card title="connect" icon="link" href="/cli/connect">
+    Connect to remote server
+  </Card>
+  <Card title="token" icon="key" href="/cli/token">
+    Display API token
+  </Card>
+</CardGroup>
+
+## Global Flags
+
+These flags are available for all commands:
+
+<ParamField path="--host" type="string">
+  Server host to connect/control. Can also be set via `SURGE_HOST` environment variable.
+  
+  Example: `127.0.0.1:1700`
+</ParamField>
+
+<ParamField path="--token" type="string">
+  Bearer token for API authentication. Can also be set via `SURGE_TOKEN` environment variable.
+</ParamField>
+
+<ParamField path="--verbose" type="boolean" default="false">
+  Enable verbose logging output.
+  
+  Short form: `-v`
+</ParamField>
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `SURGE_HOST` | Default server host when `--host` is not provided |
+| `SURGE_TOKEN` | Default authentication token when `--token` is not provided |
+
+## Command Categories
+
+### Core Commands
+
+- **surge** - Main command for launching the TUI interface
+- **add** - Queue new downloads from command line
+- **ls** - List and inspect downloads
+
+### Control Commands
+
+- **pause** - Pause active or queued downloads
+- **resume** - Resume paused downloads
+- **rm** - Remove downloads from queue
+- **refresh** - Update URL for paused/errored downloads
+
+### Server Management
+
+- **server** - Run Surge in headless mode
+- **connect** - Connect TUI to remote daemon
+- **token** - Retrieve API authentication token
+
+## Usage Patterns
+
+### Local Mode
+
+Run Surge locally with TUI:
+
+```bash
+surge https://example.com/file.zip
+```
+
+### Headless Mode
+
+Start a background server:
+
+```bash
+surge server --port 1700
+```
+
+Then control it via CLI:
+
+```bash
+surge add https://example.com/file.zip
+surge ls
+surge pause <id>
+```
+
+### Remote Mode
+
+Connect to a remote Surge instance:
+
+```bash
+surge connect 192.168.1.100:1700 --token <token>
+```
+
+Or set environment variables:
+
+```bash
+export SURGE_HOST=192.168.1.100:1700
+export SURGE_TOKEN=your-token-here
+surge add https://example.com/file.zip
+```
+
+<Note>
+Most commands automatically detect if a Surge instance is running and connect to it. Use `--host` to explicitly target a specific server.
+</Note>

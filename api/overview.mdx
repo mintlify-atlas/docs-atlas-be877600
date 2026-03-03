@@ -1,0 +1,81 @@
+---
+title: HTTP API Overview
+description: Overview of the Surge HTTP API for programmatic download management
+---
+
+The Surge HTTP API allows you to programmatically manage downloads when running Surge in server mode. The API provides endpoints for starting downloads, monitoring progress, and controlling download state.
+
+## Base URL
+
+By default, the Surge server runs on:
+
+```
+http://localhost:1700
+```
+
+You can configure a custom port using the `--port` flag when starting the server:
+
+```bash
+surge server --port 8080
+```
+
+## Authentication
+
+All API requests require authentication using a Bearer token. See the [Authentication](/api/authentication) page for details on obtaining and using tokens.
+
+## Available Endpoints
+
+### Download Management
+
+- **POST /download** - Start a new download
+- **GET /download?id={id}** - Get status of a specific download
+- **GET /list** - List all downloads with their current status
+
+### Download Control
+
+- **POST /pause?id={id}** - Pause an active download
+- **POST /resume?id={id}** - Resume a paused download
+- **DELETE /delete?id={id}** - Delete a download (also accepts POST)
+- **PUT /update-url** - Update the URL of a download
+
+### Real-time Updates
+
+- **GET /events** - Server-Sent Events (SSE) stream for real-time download events
+
+### System
+
+- **GET /health** - Health check endpoint
+
+## Response Format
+
+All API responses use JSON format with appropriate HTTP status codes:
+
+- `200 OK` - Successful request
+- `400 Bad Request` - Invalid parameters or missing required fields
+- `404 Not Found` - Download ID not found
+- `405 Method Not Allowed` - Incorrect HTTP method
+- `500 Internal Server Error` - Server-side error
+
+## Quick Example
+
+```bash
+# Start a download
+curl -X POST http://localhost:1700/download \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/file.zip"}'
+
+# List all downloads
+curl http://localhost:1700/list \
+  -H "Authorization: Bearer YOUR_TOKEN"
+
+# Stream real-time events
+curl http://localhost:1700/events \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+## Next Steps
+
+- [Authentication](/api/authentication) - Learn how to authenticate API requests
+- [Download Endpoint](/api/endpoints/download) - Start and manage downloads
+- [Events Endpoint](/api/endpoints/events) - Subscribe to real-time updates

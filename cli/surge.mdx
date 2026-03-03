@@ -1,0 +1,178 @@
+---
+title: surge
+description: Launch the Surge TUI or queue downloads
+---
+
+The main `surge` command launches the Terminal User Interface (TUI) and optionally queues downloads. When a Surge instance is already running, it will show an error and suggest using `surge add` instead.
+
+## Usage
+
+```bash
+surge [url]...
+```
+
+## Description
+
+Launches Surge in TUI mode with an embedded HTTP server for browser extension integration. The command:
+
+- Starts the interactive Terminal User Interface
+- Binds an HTTP API server on the specified port (or auto-selects one)
+- Queues any URLs provided as arguments
+- Can resume paused downloads from previous sessions (unless `--no-resume` is set)
+- Runs startup integrity check to validate database and state files
+
+<Warning>
+Only one Surge instance can run at a time. If already running, use `surge add` to queue additional downloads.
+</Warning>
+
+## Arguments
+
+<ParamField path="url" type="string" optional>
+  One or more URLs to download. URLs can include mirrors using comma separation.
+  
+  Multiple URLs can be provided:
+  ```bash
+  surge https://example.com/file1.zip https://example.com/file2.zip
+  ```
+</ParamField>
+
+## Flags
+
+<ParamField path="--batch" type="string" default="">
+  Path to a file containing URLs to download (one per line).
+  
+  Short form: `-b`
+  
+  Example:
+  ```bash
+  surge --batch urls.txt
+  ```
+</ParamField>
+
+<ParamField path="--port" type="integer" default="0">
+  Port to listen on for HTTP API server. If not specified or set to 0, automatically finds an available port starting from 1700.
+  
+  Short form: `-p`
+  
+  Example:
+  ```bash
+  surge --port 8080
+  ```
+</ParamField>
+
+<ParamField path="--output" type="string" default="">
+  Default output directory for downloads. If not specified, uses the configured default download directory from settings.
+  
+  Short form: `-o`
+  
+  Example:
+  ```bash
+  surge --output ~/Downloads
+  ```
+</ParamField>
+
+<ParamField path="--no-resume" type="boolean" default="false">
+  Do not automatically resume paused downloads from previous sessions on startup.
+  
+  Example:
+  ```bash
+  surge --no-resume
+  ```
+</ParamField>
+
+<ParamField path="--exit-when-done" type="boolean" default="false">
+  Exit the TUI automatically when all downloads complete. Useful for scripting.
+  
+  Example:
+  ```bash
+  surge --exit-when-done --batch downloads.txt
+  ```
+</ParamField>
+
+## Examples
+
+### Basic Usage
+
+Launch TUI with a single download:
+
+```bash
+surge https://releases.ubuntu.com/22.04/ubuntu-22.04-desktop-amd64.iso
+```
+
+### Batch Downloads
+
+Queue multiple downloads from a file:
+
+```bash
+surge --batch urls.txt --output ~/Downloads
+```
+
+With `urls.txt` containing:
+```
+https://example.com/file1.zip
+https://example.com/file2.tar.gz
+https://example.com/file3.iso
+```
+
+### With Mirrors
+
+Provide mirror URLs (comma-separated):
+
+```bash
+surge "https://mirror1.com/file.zip,https://mirror2.com/file.zip"
+```
+
+### Custom Port
+
+Run on a specific port:
+
+```bash
+surge --port 1700
+```
+
+### Script Integration
+
+Exit automatically when complete:
+
+```bash
+surge --batch downloads.txt --exit-when-done --no-resume
+```
+
+## Startup Behavior
+
+### Integrity Check
+
+On startup, Surge performs an integrity check that:
+- Validates paused/queued download metadata
+- Removes entries with missing or corrupted `.surge` state files
+- Cleans orphaned state files without database entries
+
+### Auto-Resume
+
+By default, Surge automatically resumes:
+- Downloads in "queued" state
+- Downloads in "paused" state (if `AutoResume` setting is enabled)
+
+Use `--no-resume` to disable this behavior.
+
+### Lock File
+
+Surge uses a lock file to prevent multiple instances. The lock is stored in the runtime directory and automatically released on exit.
+
+## Remote Mode
+
+When `--host` is specified, `surge` operates in remote TUI mode:
+
+```bash
+surge --host 127.0.0.1:1700
+```
+
+<Info>
+In remote mode, URLs cannot be passed as arguments. Use `surge add` after connecting.
+</Info>
+
+## Related Commands
+
+- [surge add](/cli/add) - Add downloads to a running instance
+- [surge server](/cli/server) - Run in headless mode
+- [surge connect](/cli/connect) - Connect TUI to remote daemon

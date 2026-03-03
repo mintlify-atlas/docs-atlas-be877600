@@ -1,0 +1,347 @@
+---
+title: Browser Extension
+description: Install and configure the Surge browser extension to intercept downloads and accelerate them with multi-connection downloads
+---
+
+The Surge browser extension intercepts downloads from Chrome, Edge, Brave, and Firefox, sending them straight to your Surge client for accelerated multi-connection downloads.
+
+## How It Works
+
+The extension communicates with your local Surge instance on port **1700** by default. When you download a file in your browser, the extension:
+
+1. Intercepts the download before the browser starts it
+2. Cancels the browser's single-connection download
+3. Sends the URL to Surge for parallel multi-connection download
+4. Optionally captures authentication headers for protected downloads
+
+<Info>
+  The extension requires a running Surge instance (TUI or server mode) on your local machine or network.
+</Info>
+
+## Chrome / Edge / Brave Installation
+
+<Steps>
+  <Step title="Download the extension">
+    Clone or download the Surge repository:
+
+    ```bash
+    git clone https://github.com/surge-downloader/surge.git
+    cd surge
+    ```
+  </Step>
+
+  <Step title="Open extensions page">
+    Navigate to `chrome://extensions` in your browser.
+  </Step>
+
+  <Step title="Enable Developer mode">
+    Toggle **Developer mode** in the top right corner.
+  </Step>
+
+  <Step title="Load unpacked extension">
+    Click **Load unpacked** and select the `extension-chrome` folder from the Surge directory.
+  </Step>
+
+  <Step title="Verify installation">
+    You should see the Surge icon in your browser toolbar.
+  </Step>
+</Steps>
+
+<Warning>
+  The Chrome extension is not yet published to the Chrome Web Store. You need to install it manually using Developer mode.
+</Warning>
+
+## Firefox Installation
+
+<Tabs>
+  <Tab title="Stable (Recommended)">
+    Install the official Firefox add-on:
+
+    1. Visit the [Firefox Add-on page](https://addons.mozilla.org/en-US/firefox/addon/surge/)
+    2. Click **Add to Firefox**
+    3. Approve the permissions
+  </Tab>
+
+  <Tab title="Development">
+    Load the extension temporarily for testing:
+
+    <Steps>
+      <Step title="Navigate to debugging page">
+        Go to `about:debugging#/runtime/this-firefox`
+      </Step>
+
+      <Step title="Load temporary add-on">
+        Click **Load Temporary Add-on...**
+      </Step>
+
+      <Step title="Select manifest">
+        Select the `manifest.json` file inside the `extension-firefox` folder
+      </Step>
+    </Steps>
+
+    <Note>
+      Temporary add-ons are removed when Firefox restarts. Use this for development only.
+    </Note>
+  </Tab>
+</Tabs>
+
+## Extension Configuration
+
+Click the Surge extension icon to open the popup:
+
+<Steps>
+  <Step title="Check connection status">
+    The popup displays:
+    - **Online**: Surge is running and accessible
+    - **Offline**: Cannot connect to Surge server
+  </Step>
+
+  <Step title="Enable/disable interception">
+    Toggle the **Intercept Downloads** switch to control whether downloads are sent to Surge.
+  </Step>
+
+  <Step title="Configure authentication token">
+    If your Surge server requires authentication:
+
+    1. Get your token: `surge token`
+    2. Paste it in the **Auth Token** field
+    3. Click **Save**
+  </Step>
+
+  <Step title="Set custom server URL (optional)">
+    If Surge is running on a different port or remote server:
+
+    1. Enter the server URL (e.g., `http://192.168.1.10:1700`)
+    2. Click **Save**
+  </Step>
+</Steps>
+
+## Extension Features
+
+### Download Interception
+
+When enabled, the extension automatically:
+
+- Intercepts browser downloads
+- Sends them to Surge for acceleration
+- Shows notifications when downloads start
+- Opens the extension popup to show progress
+
+### Header Capture
+
+The extension captures request headers (cookies, authorization, etc.) and forwards them to Surge. This enables downloading from authenticated sources:
+
+```javascript extension-chrome/background.js (excerpt)
+chrome.webRequest.onBeforeSendHeaders.addListener(
+  (details) => {
+    const headers = {};
+    for (const header of details.requestHeaders) {
+      headers[header.name] = header.value;
+    }
+    capturedHeaders.set(details.url, {
+      headers,
+      timestamp: Date.now(),
+    });
+  },
+  { urls: ["<all_urls>"] },
+  ["requestHeaders", "extraHeaders"]
+);
+```
+
+<Tip>
+  Headers are cached for 2 minutes to support downloads from authenticated endpoints.
+</Tip>
+
+### Duplicate Detection
+
+The extension checks if a URL is already being downloaded by Surge:
+
+1. If duplicate detected, prompts you to confirm or skip
+2. Prevents accidentally queueing the same file multiple times
+3. Shows pending duplicates as a badge on the extension icon
+
+### Live Progress Tracking
+
+The extension popup displays:
+
+- Active downloads with real-time progress
+- Download speed (MB/s)
+- Estimated time remaining (ETA)
+- Pause/Resume/Cancel controls
+
+## Port Configuration
+
+The extension defaults to port **1700**. If Surge is running on a different port:
+
+<CodeGroup>
+  ```bash Start Surge on custom port
+  surge server --port 8080
+  ```
+
+  ```text Configure extension
+  Open extension popup
+  → Server URL: http://localhost:8080
+  → Save
+  ```
+</CodeGroup>
+
+## Extension Permissions
+
+The extension requires these permissions:
+
+| Permission | Purpose |
+| ---------- | ------- |
+| `downloads` | Intercept and cancel browser downloads |
+| `storage` | Save settings (server URL, token, intercept state) |
+| `notifications` | Show download start/complete notifications |
+| `webRequest` | Capture request headers for authenticated downloads |
+| `<all_urls>` | Access headers for any download URL |
+
+<Info>
+  The extension only communicates with your local Surge instance. No data is sent to external servers.
+</Info>
+
+## Manifest (Chrome/Edge)
+
+```json extension-chrome/manifest.json
+{
+  "manifest_version": 3,
+  "name": "Surge Download Manager",
+  "version": "1.6.5",
+  "description": "High-performance download acceleration with live progress tracking.",
+  "permissions": ["downloads", "storage", "notifications", "webRequest"],
+  "host_permissions": ["http://127.0.0.1/*", "<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  }
+}
+```
+
+## Troubleshooting
+
+<Steps>
+  <Step title="Extension shows 'Offline'">
+    Ensure Surge is running:
+
+    ```bash
+    surge
+    ```
+
+    Or in server mode:
+
+    ```bash
+    surge server
+    ```
+  </Step>
+
+  <Step title="Downloads not intercepting">
+    1. Check that **Intercept Downloads** is enabled in the popup
+    2. Verify Surge is running on the correct port
+    3. Check browser console for errors (F12 → Console)
+  </Step>
+
+  <Step title="Authentication errors">
+    If you see 401/403 errors:
+
+    1. Get your token: `surge token`
+    2. Enter it in the extension popup
+    3. Click **Save** and verify it shows "Token valid"
+  </Step>
+
+  <Step title="Port conflicts">
+    If port 1700 is in use:
+
+    ```bash
+    surge server --port 1701
+    ```
+
+    Update extension Server URL to `http://localhost:1701`
+  </Step>
+</Steps>
+
+## Remote Server Configuration
+
+To use the extension with a remote Surge server:
+
+<Steps>
+  <Step title="Get the server token">
+    On the remote server:
+
+    ```bash
+    surge token
+    ```
+  </Step>
+
+  <Step title="Configure extension">
+    In the extension popup:
+
+    - **Server URL**: `http://192.168.1.10:1700`
+    - **Auth Token**: `<token-from-server>`
+    - Click **Save**
+  </Step>
+
+  <Step title="Test connection">
+    The status indicator should show **Online** if successful.
+  </Step>
+</Steps>
+
+<Warning>
+  Using HTTP for remote servers sends your token in plaintext. Use a VPN or SSH tunnel for secure remote access.
+</Warning>
+
+## Advanced Configuration
+
+### Custom Server Discovery
+
+The extension scans ports 1700-1800 to find your Surge instance:
+
+```javascript extension-chrome/background.js (excerpt)
+const DEFAULT_PORT = 1700;
+const MAX_PORT_SCAN = 100;
+
+for (let port = DEFAULT_PORT; port < DEFAULT_PORT + MAX_PORT_SCAN; port++) {
+  const url = `http://127.0.0.1:${port}`;
+  const response = await fetch(`${url}/health`, {
+    signal: AbortSignal.timeout(200),
+  });
+  if (response.ok) {
+    const data = await response.json();
+    if (data.status === "ok") {
+      return url;
+    }
+  }
+}
+```
+
+### Extension Prompt Mode
+
+You can configure Surge to prompt for confirmation before accepting extension downloads:
+
+```bash
+# In Surge TUI
+Settings → General → Extension Prompt: true
+```
+
+This adds an extra confirmation step in the TUI before queuing downloads.
+
+## Keyboard Shortcuts
+
+Set custom keyboard shortcuts for the extension:
+
+1. Navigate to `chrome://extensions/shortcuts`
+2. Find **Surge Download Manager**
+3. Set shortcuts for:
+   - Open popup
+   - Toggle interception
+
+<Tip>
+  Use `Ctrl+Shift+S` to quickly toggle download interception on/off.
+</Tip>

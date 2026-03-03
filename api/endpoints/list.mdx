@@ -1,0 +1,229 @@
+---
+title: List Endpoint
+description: Retrieve a list of all downloads with their current status
+---
+
+The `/list` endpoint returns information about all downloads, including active, paused, completed, and errored downloads.
+
+## GET /list
+
+Retrieve a list of all downloads.
+
+### Request
+
+This endpoint accepts no parameters. Simply make a GET request with authentication.
+
+```bash
+curl http://localhost:1700/list \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+### Response
+
+Returns a JSON array of download status objects. Each object contains detailed information about a download.
+
+<ResponseField name="id" type="string">
+  Unique identifier for the download.
+</ResponseField>
+
+<ResponseField name="url" type="string">
+  The URL being downloaded.
+</ResponseField>
+
+<ResponseField name="filename" type="string">
+  The filename of the download.
+</ResponseField>
+
+<ResponseField name="dest_path" type="string">
+  Full absolute path to the destination file.
+</ResponseField>
+
+<ResponseField name="total_size" type="integer">
+  Total file size in bytes.
+</ResponseField>
+
+<ResponseField name="downloaded" type="integer">
+  Number of bytes downloaded so far.
+</ResponseField>
+
+<ResponseField name="progress" type="number">
+  Download progress as a percentage (0-100).
+</ResponseField>
+
+<ResponseField name="speed" type="number">
+  Current download speed in MB/s.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Current download status. Possible values:
+  - `"queued"` - Download is queued and waiting to start
+  - `"downloading"` - Download is actively in progress
+  - `"paused"` - Download has been paused
+  - `"completed"` - Download finished successfully
+  - `"error"` - Download encountered an error
+</ResponseField>
+
+<ResponseField name="error" type="string">
+  Error message if the download failed. Only present when `status` is `"error"`.
+</ResponseField>
+
+<ResponseField name="eta" type="integer">
+  Estimated time remaining in seconds. Only relevant for active downloads.
+</ResponseField>
+
+<ResponseField name="connections" type="integer">
+  Number of active connections being used for this download.
+</ResponseField>
+
+<ResponseField name="added_at" type="integer">
+  Unix timestamp (seconds) when the download was added.
+</ResponseField>
+
+<ResponseField name="time_taken" type="integer">
+  Total time taken in milliseconds. Only present for completed downloads.
+</ResponseField>
+
+<ResponseField name="avg_speed" type="number">
+  Average download speed in bytes per second. Only present for completed downloads.
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL
+curl http://localhost:1700/list \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:1700/list', {
+  headers: {
+    'Authorization': 'Bearer YOUR_TOKEN'
+  }
+});
+
+const downloads = await response.json();
+console.log(`Total downloads: ${downloads.length}`);
+
+downloads.forEach(download => {
+  console.log(`${download.filename}: ${download.progress}%`);
+});
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    'http://localhost:1700/list',
+    headers={'Authorization': 'Bearer YOUR_TOKEN'}
+)
+
+downloads = response.json()
+print(f"Total downloads: {len(downloads)}")
+
+for download in downloads:
+    print(f"{download['filename']}: {download['progress']}%")
+```
+
+</CodeGroup>
+
+## Response Example
+
+```json
+[
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "url": "https://example.com/large-file.zip",
+    "filename": "large-file.zip",
+    "dest_path": "/home/user/downloads/large-file.zip",
+    "total_size": 1073741824,
+    "downloaded": 536870912,
+    "progress": 50.0,
+    "speed": 10.5,
+    "status": "downloading",
+    "eta": 51,
+    "connections": 8,
+    "added_at": 1709481600
+  },
+  {
+    "id": "660e8400-e29b-41d4-a716-446655440001",
+    "url": "https://example.com/document.pdf",
+    "filename": "document.pdf",
+    "dest_path": "/home/user/downloads/document.pdf",
+    "total_size": 2097152,
+    "downloaded": 2097152,
+    "progress": 100.0,
+    "speed": 0,
+    "status": "completed",
+    "eta": 0,
+    "connections": 0,
+    "added_at": 1709481200,
+    "time_taken": 1500,
+    "avg_speed": 1398101.33
+  },
+  {
+    "id": "770e8400-e29b-41d4-a716-446655440002",
+    "url": "https://example.com/video.mp4",
+    "filename": "video.mp4",
+    "dest_path": "/home/user/downloads/video.mp4",
+    "total_size": 524288000,
+    "downloaded": 262144000,
+    "progress": 50.0,
+    "speed": 0,
+    "status": "paused",
+    "eta": 0,
+    "connections": 0,
+    "added_at": 1709480800
+  }
+]
+```
+
+## Filtering Downloads
+
+The API returns all downloads regardless of status. You can filter downloads in your application based on the `status` field:
+
+```javascript
+const downloads = await fetch('http://localhost:1700/list', {
+  headers: { 'Authorization': 'Bearer YOUR_TOKEN' }
+}).then(r => r.json());
+
+// Get only active downloads
+const active = downloads.filter(d => d.status === 'downloading');
+
+// Get paused downloads
+const paused = downloads.filter(d => d.status === 'paused');
+
+// Get completed downloads
+const completed = downloads.filter(d => d.status === 'completed');
+
+// Get downloads with errors
+const errors = downloads.filter(d => d.status === 'error');
+```
+
+## Empty Response
+
+If there are no downloads, the endpoint returns an empty array:
+
+```json
+[]
+```
+
+## Error Responses
+
+<Expandable title="500 Internal Server Error">
+  Returned if the server encounters an error while retrieving downloads:
+  
+  ```json
+  {
+    "error": "Failed to list downloads: database error"
+  }
+  ```
+</Expandable>
+
+## Use Cases
+
+- **Dashboard**: Build a web dashboard showing all current downloads
+- **Monitoring**: Poll this endpoint to monitor download progress
+- **Automation**: Check if specific downloads are complete before triggering other actions
+- **Statistics**: Calculate total bandwidth usage or completion rates

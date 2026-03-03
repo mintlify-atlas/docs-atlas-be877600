@@ -1,0 +1,320 @@
+---
+title: refresh
+description: Update the URL of a paused or errored download
+---
+
+The `refresh` command updates the source URL of an existing download, allowing you to reconnect to a new or updated link.
+
+## Usage
+
+```bash
+surge refresh <ID> <NEW_URL>
+```
+
+## Description
+
+Updates the URL for a paused or errored download. This is useful when:
+
+- The original download link has expired
+- A new mirror or CDN URL is available
+- The file has been moved to a different location
+- You want to switch to a faster mirror
+
+The command:
+
+- Updates the URL in the database and state file
+- Preserves existing download progress
+- Requires the download to be paused or in error state
+- Validates the new URL before applying
+
+<Info>
+The download must be paused or in an error state to refresh its URL. Active downloads cannot be refreshed.
+</Info>
+
+## Arguments
+
+<ParamField path="ID" type="string" required>
+  Download ID (full or partial) to update.
+  
+  Example:
+  ```bash
+  surge refresh abc12345 https://new-mirror.com/file.zip
+  ```
+</ParamField>
+
+<ParamField path="NEW_URL" type="string" required>
+  The new source URL for the download.
+  
+  Example:
+  ```bash
+  surge refresh abc12345 https://example.com/file.zip
+  ```
+</ParamField>
+
+## Examples
+
+### Basic URL Update
+
+```bash
+surge refresh abc12345 https://new-mirror.com/ubuntu-22.04.iso
+```
+
+Output:
+```
+Successfully updated URL for download abc12345
+```
+
+### Update Expired Link
+
+When a download fails due to expired link:
+
+```bash
+# Check download status
+surge ls abc12345
+# Status: error
+# Error: 403 Forbidden
+
+# Pause if not already paused
+surge pause abc12345
+
+# Update with fresh link
+surge refresh abc12345 https://example.com/fresh-link/file.zip
+
+# Resume download
+surge resume abc12345
+```
+
+### Switch to Faster Mirror
+
+```bash
+# Current download is slow
+surge pause abc12345
+
+# Update to faster mirror
+surge refresh abc12345 https://fast-cdn.com/file.zip
+
+# Resume
+surge resume abc12345
+```
+
+### Update Multiple Downloads
+
+Script to update multiple downloads with new base URL:
+
+```bash
+OLD_BASE="https://old-server.com"
+NEW_BASE="https://new-server.com"
+
+surge ls --json | jq -r ".[] | select(.url | startswith(\"$OLD_BASE\")) | .id" | while read id; do
+  # Get current URL
+  current_url=$(surge ls "$id" --json | jq -r '.url')
+  # Replace base
+  new_url="${current_url/$OLD_BASE/$NEW_BASE}"
+  # Update
+  surge refresh "$id" "$new_url"
+done
+```
+
+## Workflow
+
+### Typical Refresh Process
+
+1. **Pause the download** (if not already paused/errored):
+   ```bash
+   surge pause abc12345
+   ```
+
+2. **Update the URL**:
+   ```bash
+   surge refresh abc12345 https://new-url.com/file.zip
+   ```
+
+3. **Resume the download**:
+   ```bash
+   surge resume abc12345
+   ```
+
+### Handle Expired Links
+
+For downloads that failed due to expired links:
+
+```bash
+# List failed downloads
+surge ls --json | jq -r '.[] | select(.status == "error")'
+
+# Refresh each with new URL
+surge refresh abc12345 https://new-link.com/file.zip
+
+# Resume
+surge resume abc12345
+```
+
+## Requirements
+
+### Download State
+
+The download must be in one of these states:
+- **paused** - Manually paused
+- **error** - Failed with error
+
+<Warning>
+Active or queued downloads cannot be refreshed. Pause them first with `surge pause <ID>`.
+</Warning>
+
+### URL Validation
+
+The new URL:
+- Must be a valid HTTP/HTTPS URL
+- Should point to the same file (or compatible file)
+- Is validated by the server before applying
+
+## Remote Servers
+
+Refresh downloads on a remote server:
+
+```bash
+surge refresh --host 192.168.1.100:1700 abc12345 https://new-url.com/file.zip
+```
+
+With environment variable:
+
+```bash
+export SURGE_HOST=192.168.1.100:1700
+surge refresh abc12345 https://new-url.com/file.zip
+```
+
+## Error Handling
+
+### Download Not Found
+
+```
+Error: download not found: xyz
+```
+
+Verify the ID:
+
+```bash
+surge ls
+```
+
+### Download Not Paused
+
+```
+Error: download must be paused or errored to refresh URL
+```
+
+Pause it first:
+
+```bash
+surge pause abc12345
+surge refresh abc12345 https://new-url.com/file.zip
+```
+
+### Invalid URL
+
+```
+Error: invalid URL format
+```
+
+Ensure the URL is complete and valid:
+
+```bash
+surge refresh abc12345 https://example.com/file.zip
+```
+
+### No Server Running
+
+```
+Error: No running Surge server found.
+```
+
+Start Surge first:
+
+```bash
+surge server
+```
+
+## Use Cases
+
+### Expired Download Links
+
+Many file hosting services provide temporary URLs that expire:
+
+```bash
+surge pause abc12345
+surge refresh abc12345 https://file-host.com/new-temp-link/file.zip
+surge resume abc12345
+```
+
+### CDN Migration
+
+When files move to a new CDN:
+
+```bash
+surge pause abc12345
+surge refresh abc12345 https://new-cdn.example.com/file.zip
+surge resume abc12345
+```
+
+### Mirror Switching
+
+Switch to a working mirror when one fails:
+
+```bash
+# Original URL failed
+surge ls abc12345
+# Status: error
+# Error: Connection timeout
+
+# Switch to mirror
+surge refresh abc12345 https://mirror2.example.com/file.zip
+surge resume abc12345
+```
+
+### Update After File Move
+
+When the file is moved to a new location:
+
+```bash
+surge pause abc12345
+surge refresh abc12345 https://example.com/new-location/file.zip
+surge resume abc12345
+```
+
+## Best Practices
+
+### Verify File Compatibility
+
+Ensure the new URL points to the same file:
+
+```bash
+# Check file size before refreshing
+curl -sI https://new-url.com/file.zip | grep -i content-length
+
+# Compare with existing download
+surge ls abc12345
+```
+
+### Test URL First
+
+Verify the new URL is accessible:
+
+```bash
+curl -I https://new-url.com/file.zip
+```
+
+### Keep Original URL
+
+Note the original URL before updating:
+
+```bash
+surge ls abc12345 --json | jq -r '.url' > original-url.txt
+surge refresh abc12345 https://new-url.com/file.zip
+```
+
+## Related Commands
+
+- [surge pause](/cli/pause) - Pause download before refreshing
+- [surge resume](/cli/resume) - Resume after URL update
+- [surge ls](/cli/ls) - Check download status and URL
+- [surge rm](/cli/rm) - Remove and re-add if refresh doesn't work

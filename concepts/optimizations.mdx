@@ -1,0 +1,456 @@
+---
+title: Optimizations
+description: How Surge maximizes download speeds with parallel connections, work stealing, health checks, and hedge requests
+---
+
+Surge is designed to maximize bandwidth utilization by overcoming the limitations of single-connection downloads. This page explains the optimization techniques that make Surge blazingly fast.
+
+## The Problem with Single-Connection Downloads
+
+Most browsers open **one HTTP connection** per download. Servers typically limit the bandwidth allocated to a single connection to ensure fair distribution among users.
+
+<Note>
+If a server limits each connection to 5 MB/s, a single-connection download will never exceed that speed, even if your network supports 100 MB/s.
+</Note>
+
+Surge solves this by:
+1. Opening **up to 32 parallel connections** to the same server
+2. Splitting the file into chunks and downloading them concurrently
+3. Dynamically optimizing these connections during the download
+
+---
+
+## Parallel Connections (Up to 32)
+
+Surge uses HTTP range requests to download different parts of a file simultaneously.
+
+### How It Works
+
+1. **Probe the server** to check if it supports range requests (`Accept-Ranges: bytes`)
+2. **Calculate optimal worker count** using a square root heuristic
+3. **Split the file** into large chunks (fileSize / numWorkers)
+4. **Spawn workers** (goroutines) that download their assigned chunks in parallel
+
+```go
+// Located in: internal/engine/concurrent/downloader.go:62-97
+func (d *ConcurrentDownloader) getInitialConnections(fileSize int64) int {
+    // Square root heuristic for initial worker count
+    sizeMB := float64(fileSize) / (1024 * 1024)
+    calculatedWorkers := int(math.Round(math.Sqrt(sizeMB)))
+    
+    // Clamp between 1 and maxConns (typically 32)
+    if calculatedWorkers < 1 { return 1 }
+    if calculatedWorkers > maxConns { return maxConns }
+    
+    return calculatedWorkers
+}
+```
+
+**Examples:**
+- 100 MB file → √100 = **10 connections**
+- 1 GB file → √1024 ≈ **32 connections** (capped at max)
+- 10 MB file → √10 ≈ **3 connections**
+
+<Info>
+The square root heuristic balances connection overhead with parallelism. Too many connections create overhead; too few leave bandwidth unused.
+</Info>
+
+### Large Chunks Strategy
+
+Unlike some download managers that use tiny chunks (e.g., 1 MB), Surge creates **large initial chunks**:
+
+```go
+// Located in: internal/engine/concurrent/downloader.go:121-143
+func (d *ConcurrentDownloader) calculateChunkSize(fileSize int64, numConns int) int64 {
+    chunkSize := fileSize / int64(numConns)  // Equal distribution
+    
+    // Ensure minimum chunk size (e.g., 5 MB)
+    minChunk := d.Runtime.GetMinChunkSize()
+    if chunkSize < minChunk {
+        chunkSize = minChunk
+    }
+    
+    // Align to 4KB for optimal disk I/O
+    chunkSize = (chunkSize / 4096) * 4096
+    
+    return chunkSize
+}
+```
+
+**Why large chunks?**
+- Reduces per-request overhead (fewer HTTP handshakes)
+- Minimizes file I/O operations
+- Enables effective work stealing (see below)
+
+<Tip>
+For a 1 GB file with 32 workers, each worker starts with a **32 MB chunk**. This is far more efficient than 1000+ tiny chunks.
+</Tip>
+
+---
+
+## Work Stealing
+
+Near the end of a download, fast workers finish early while slow workers continue. Surge reallocates idle workers to **steal work** from busy ones.
+
+### The Problem
+
+Imagine a download with 10 workers:
+- Workers 1-9 finish in 30 seconds
+- Worker 10 is stuck on a slow connection, taking 2 minutes
+- Result: **9 idle workers** while 1 struggles
+
+### Surge's Solution
+
+```go
+// Located in: internal/engine/concurrent/worker.go:400-470
+func (d *ConcurrentDownloader) StealWork(queue *TaskQueue) bool {
+    // Find worker with MOST remaining work
+    bestWorker := findWorkerWithMaxRemaining()
+    
+    // Split its task in half
+    splitSize := alignedSplitSize(remaining)
+    
+    // Update active worker's stop point
+    active.StopAt.Store(current + splitSize)
+    
+    // Queue the stolen half for an idle worker
+    stolenTask := types.Task{
+        Offset: current + splitSize,
+        Length: remaining - splitSize,
+    }
+    queue.Push(stolenTask)
+}
+```
+
+**Example:**
+- Worker A has 20 MB remaining
+- Worker B is idle
+- Surge splits Worker A's task: A keeps first 10 MB, B steals last 10 MB
+- Both workers now work in parallel
+
+<Accordion title="How does the split avoid conflicts?">
+Workers use atomic operations to update their `StopAt` boundary:
+
+```go
+// Worker A checks its stop point before every write
+stopAt := activeTask.StopAt.Load()
+if offset >= stopAt {
+    return nil  // Stop here, another worker took the rest
+}
+```
+
+This ensures workers never write the same bytes twice.
+</Accordion>
+
+### When Work Stealing Happens
+
+Surge runs a balancer goroutine every **200 milliseconds**:
+
+```go
+// Located in: internal/engine/concurrent/downloader.go:403-438
+for queue.IdleWorkers() > 0 {
+    if queue.Len() == 0 {
+        // No pending tasks, try stealing
+        if d.StealWork(queue) {
+            continue  // Successfully stole, check for more idle workers
+        }
+    }
+    break  // Can't steal anymore
+}
+```
+
+<Info>
+Work stealing only occurs when chunks are **large enough to split** (minimum 1 MB). If chunks are too small, Surge uses **hedge requests** instead (see below).
+</Info>
+
+---
+
+## Health Checks for Slow Workers
+
+Not all HTTP connections are equal. CDNs, load balancers, and network routing can cause some connections to be significantly slower than others.
+
+### Detection Algorithm
+
+Surge monitors each worker's speed and compares it to the mean:
+
+```go
+// Located in: internal/engine/concurrent/health.go:10-98
+func (d *ConcurrentDownloader) checkWorkerHealth() {
+    // Calculate mean speed across all workers
+    var totalSpeed, speedCount float64
+    for _, active := range d.activeTasks {
+        if speed := active.GetSpeed(); speed > 0 {
+            totalSpeed += speed
+            speedCount++
+        }
+    }
+    meanSpeed := totalSpeed / speedCount
+    
+    // Check each worker
+    for workerID, active := range d.activeTasks {
+        workerSpeed := active.GetSpeed()
+        threshold := 0.3  // 30% of mean
+        
+        if workerSpeed < threshold * meanSpeed {
+            // This worker is too slow, cancel it
+            active.Cancel()
+        }
+    }
+}
+```
+
+**Thresholds:**
+- Worker speed < **0.3× mean speed** → Cancel and restart
+- No data received for **15 seconds** → Cancel as stalled
+
+<Note>
+Health checks run every **5 seconds** but only after a **grace period** (first 3 seconds) to allow TCP slow-start to stabilize.
+</Note>
+
+### What Happens to Cancelled Workers?
+
+When a slow worker is cancelled:
+
+1. **Remaining bytes** are calculated from `CurrentOffset`
+2. **Task is re-queued** with updated offset
+3. **Next idle worker** picks up the task
+4. **New connection** may get a faster route to the server
+
+```go
+// Located in: internal/engine/concurrent/worker.go:113-139
+if wasExternallyCancelled {  // Health monitor cancelled us
+    if remaining := activeTask.RemainingTask(); remaining != nil {
+        queue.Push(*remaining)  // Re-queue remaining bytes
+    }
+    currentMirrorIdx = (currentMirrorIdx + 1) % len(mirrors)  // Try next mirror
+    break  // Exit retry loop, get next task
+}
+```
+
+<Tip>
+Health checks are especially effective with **multiple mirrors**. If a worker is slow on Mirror A, the re-queued task may use Mirror B instead.
+</Tip>
+
+---
+
+## Hedge Requests
+
+When work stealing isn't possible (chunks too small), Surge uses **hedged requests**: duplicate tasks on fresh connections.
+
+### The Problem
+
+Toward the end of a download:
+- Remaining chunks are too small to split (e.g., 500 KB)
+- Work stealing doesn't help
+- One slow worker blocks completion
+
+### Surge's Solution
+
+```go
+// Located in: internal/engine/concurrent/worker.go:472-536
+func (d *ConcurrentDownloader) HedgeWork(queue *TaskQueue) bool {
+    // Find active task with most remaining work (not yet hedged)
+    bestActive := findBestTaskToHedge()
+    
+    // Mark as hedged to prevent duplicates
+    bestActive.Hedged.Store(true)
+    
+    // Create duplicate task for SAME byte range
+    hedgedTask := types.Task{
+        Offset:          current,
+        Length:          stopAt - current,
+        SharedMaxOffset: bestActive.SharedMaxOffset,  // Deduplication state
+    }
+    
+    queue.Push(hedgedTask)  // Idle worker will race the original
+}
+```
+
+**How it works:**
+1. Original worker (Worker A) continues downloading bytes 900-1000 MB
+2. Idle worker (Worker B) starts a **new connection** for the **same bytes**
+3. Both workers race; whichever finishes first wins
+4. Progress is deduplicated using `SharedMaxOffset` atomic counter
+
+### Deduplication
+
+Both workers write to the same file offsets, but Surge ensures bytes are only counted once:
+
+```go
+// Located in: internal/engine/concurrent/worker.go:326-350
+if activeTask.SharedMaxOffset != nil {
+    for {
+        maxOff := activeTask.SharedMaxOffset.Load()
+        if offset <= maxOff {
+            newlyWritten = 0  // Already counted by other worker
+            break
+        }
+        if activeTask.SharedMaxOffset.CompareAndSwap(maxOff, offset) {
+            newlyWritten = offset - maxOff  // Only count new progress
+            break
+        }
+    }
+}
+```
+
+<Info>
+Hedge requests are inspired by Google's "The Tail at Scale" paper. By racing redundant requests on fresh connections, we eliminate tail latency from slow connections.
+</Info>
+
+<Accordion title="Won't this waste bandwidth?">
+Minimally. Hedge requests only trigger:
+
+1. **Near the end** of the download (>90% complete)
+2. **When idle workers exist** (no cost if all workers busy)
+3. **Only once per task** (marked with `Hedged` flag)
+
+The speedup from eliminating slow tail requests far outweighs the small bandwidth overhead.
+</Accordion>
+
+---
+
+## Multiple Mirror Support
+
+Surge can download from multiple sources simultaneously, distributing workers across all available mirrors.
+
+### Adding Mirrors
+
+```bash
+# Comma-separated mirrors
+surge "https://mirror1.com/file.zip,https://mirror2.com/file.zip,https://mirror3.com/file.zip"
+
+# Via TUI: Press 'a', then enter mirrors in the prompt
+```
+
+### Worker Distribution
+
+Workers are assigned to mirrors using **round-robin**:
+
+```go
+// Located in: internal/engine/concurrent/worker.go:27-28
+// Initial mirror assignment: Round Robin based on worker ID
+currentMirrorIdx := id % len(mirrors)
+```
+
+**Example with 12 workers and 3 mirrors:**
+- Workers 0, 3, 6, 9 → Mirror 1
+- Workers 1, 4, 7, 10 → Mirror 2  
+- Workers 2, 5, 8, 11 → Mirror 3
+
+### Automatic Failover
+
+If a worker fails on one mirror, it automatically switches to the next:
+
+```go
+// Located in: internal/engine/concurrent/worker.go:46-56
+for attempt := 0; attempt < maxRetries; attempt++ {
+    if attempt > 0 {
+        // Report error for previous mirror
+        d.ReportMirrorError(mirrors[currentMirrorIdx])
+        
+        // Switch to next mirror
+        currentMirrorIdx = (currentMirrorIdx + 1) % len(mirrors)
+    }
+    
+    err := d.downloadTask(ctx, mirrors[currentMirrorIdx], file, task)
+}
+```
+
+**Benefits:**
+- **Redundancy**: If one mirror goes down, others continue
+- **Speed**: Aggregate bandwidth from multiple sources
+- **Load balancing**: Distributes load across CDN endpoints
+
+<Note>
+Surge probes all mirrors before starting the download. Invalid mirrors are automatically filtered out.
+</Note>
+
+---
+
+## Sequential Download (Streaming Mode)
+
+For media files, Surge offers a **sequential download** option that preserves strict byte order.
+
+### Enabling Sequential Mode
+
+```bash
+# In settings (press 's' in TUI)
+# Toggle "Sequential Download" to ON
+```
+
+**Use case:** Download a video file and start playing it before the download completes.
+
+### How It Works
+
+```go
+// Located in: internal/engine/concurrent/downloader.go:146-163
+if d.Runtime.SequentialDownload {
+    // Use small fixed chunks (2 MB) to ensure strict ordering
+    chunkSize := 2 * 1024 * 1024
+} else {
+    // Use large shards for maximum parallelism
+    chunkSize = fileSize / numWorkers
+}
+```
+
+**Key differences:**
+- **Small chunks** (2 MB) instead of large shards
+- **Strict queue order** (FIFO task queue)
+- **No work stealing** across chunk boundaries
+- **Still parallel** (multiple workers, but ordered completion)
+
+<Tip>
+Sequential mode still uses multiple connections for speed, but ensures bytes 0-2 MB complete before 2-4 MB, enabling streaming playback.
+</Tip>
+
+---
+
+## Summary: Why Surge is Fast
+
+<CardGroup cols={2}>
+<Card title="Parallel Connections" icon="arrows-split-up-and-left">
+Up to 32 simultaneous connections aggregate bandwidth from per-connection limits
+</Card>
+
+<Card title="Work Stealing" icon="hand-holding-dollar">
+Idle workers steal tasks from slow workers, eliminating bottlenecks
+</Card>
+
+<Card title="Health Checks" icon="heart-pulse">
+Slow connections are cancelled and retried, ensuring all workers are fast
+</Card>
+
+<Card title="Hedge Requests" icon="shuffle">
+Race duplicate tasks on fresh connections to eliminate tail latency
+</Card>
+
+<Card title="Multiple Mirrors" icon="server">
+Distribute workers across mirrors for redundancy and aggregated bandwidth
+</Card>
+
+<Card title="Large Chunks" icon="box">
+Minimize overhead with large initial chunks, split dynamically as needed
+</Card>
+</CardGroup>
+
+## Benchmarks
+
+These optimizations result in significant speedups:
+
+| Tool | Time | Speed | vs Surge |
+|------|------|-------|----------|
+| **Surge** | **28.93s** | **35.40 MB/s** | **—** |
+| aria2c | 40.04s | 25.57 MB/s | **1.38× slower** |
+| curl | 57.57s | 17.79 MB/s | **1.99× slower** |
+| wget | 61.81s | 16.57 MB/s | **2.14× slower** |
+
+<Note>
+Test conditions: 1 GB file, Windows 11, Ryzen 5 5600X, 360 Mbps network. Results averaged over 5 runs.
+</Note>
+
+<Tip>
+These techniques work best when:
+- Server supports range requests (`Accept-Ranges: bytes`)
+- Network bandwidth > server per-connection limit  
+- File size > 10 MB (enough to benefit from parallelism)
+</Tip>

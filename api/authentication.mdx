@@ -1,0 +1,103 @@
+---
+title: Authentication
+description: How to authenticate with the Surge HTTP API using Bearer tokens
+---
+
+The Surge HTTP API uses Bearer token authentication to secure all endpoints. You must include a valid token in the `Authorization` header of every API request.
+
+## Getting Your Token
+
+There are two ways to obtain your authentication token:
+
+### 1. Using the CLI Command
+
+The simplest way to get your token is using the `surge token` command:
+
+```bash
+surge token
+```
+
+This will display your current authentication token. If no token exists, one will be generated automatically.
+
+### 2. Setting a Custom Token
+
+You can set a custom token when starting the server:
+
+**Using a command-line flag:**
+
+```bash
+surge server --token "your-custom-token-here"
+```
+
+**Using an environment variable:**
+
+```bash
+export SURGE_TOKEN="your-custom-token-here"
+surge server
+```
+
+<Note>
+The `--token` flag takes precedence over the `SURGE_TOKEN` environment variable.
+</Note>
+
+## Using the Token
+
+Include your token in the `Authorization` header with the `Bearer` scheme:
+
+```bash
+curl http://localhost:1700/list \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+```
+
+### Example with JavaScript
+
+```javascript
+const token = 'your-token-here';
+
+fetch('http://localhost:1700/list', {
+  headers: {
+    'Authorization': `Bearer ${token}`
+  }
+})
+  .then(response => response.json())
+  .then(data => console.log(data));
+```
+
+### Example with Python
+
+```python
+import requests
+
+token = 'your-token-here'
+headers = {'Authorization': f'Bearer {token}'}
+
+response = requests.get('http://localhost:1700/list', headers=headers)
+print(response.json())
+```
+
+## Token Storage
+
+Tokens are stored securely in your Surge configuration directory:
+
+- **Linux/macOS:** `~/.config/surge/token`
+- **Windows:** `%APPDATA%\surge\token`
+
+The token file has restricted permissions (0600) to prevent unauthorized access.
+
+<Warning>
+Keep your token secure. Anyone with access to your token can control your Surge server and downloads.
+</Warning>
+
+## Unauthorized Requests
+
+If you make a request without a valid token or with an incorrect token, the API will return a `401 Unauthorized` error:
+
+```json
+{
+  "error": "Unauthorized"
+}
+```
+
+## Token Rotation
+
+To rotate your token, simply generate a new one by restarting the server with a new `--token` value or by updating the `SURGE_TOKEN` environment variable. You can also manually edit the token file in your configuration directory.

@@ -1,0 +1,425 @@
+---
+title: CLI Scripting
+description: Advanced CLI patterns, command chaining, and integration examples
+---
+
+Surge's CLI provides powerful patterns for advanced automation, scripting, and integration with other tools.
+
+## Command Overview
+
+All CLI commands can target a running server using `--host` and `--token` flags (or `SURGE_HOST` and `SURGE_TOKEN` environment variables).
+
+### Primary Commands
+
+| Command | Aliases | Description | Key Flags |
+|---------|---------|-------------|----------|
+| `surge add <url>...` | `get` | Queue downloads | `--batch`, `--output` |
+| `surge ls [id]` | `l` | List or inspect downloads | `--json`, `--watch` |
+| `surge pause <id>` | - | Pause active download | `--all` |
+| `surge resume <id>` | - | Resume paused download | `--all` |
+| `surge refresh <id> <url>` | - | Update download URL | - |
+| `surge rm <id>` | `kill` | Remove download | `--clean` |
+| `surge token` | - | Display API token | - |
+
+<Note>
+Commands accept partial IDs (minimum 8 characters) that uniquely identify a download.
+</Note>
+
+## Advanced Patterns
+
+### Chaining Commands
+
+Combine multiple operations in a single workflow:
+
+```bash
+# Add download and immediately monitor
+surge add https://example.com/large-file.zip && surge ls --watch
+
+# Queue multiple files and check status
+surge add https://example.com/file1.zip https://example.com/file2.zip && \
+  surge ls --json | jq '.[].filename'
+
+# Pause all, update a URL, then resume
+surge pause --all && \
+  surge refresh a1b2c3d4 https://mirror.example.com/file.zip && \
+  surge resume --all
+```
+
+### ID Resolution
+
+Surge supports partial ID matching for convenience:
+
+<CodeGroup>
+```bash Full ID
+# Using complete UUID
+surge pause a1b2c3d4-e5f6-7890-abcd-ef1234567890
+```
+
+```bash Partial ID
+# Minimum 8 characters (must be unique)
+surge pause a1b2c3d4
+```
+
+```bash Auto-completion
+# Get full ID from JSON output
+ID=$(surge ls --json | jq -r '.[0].id')
+surge pause $ID
+```
+</CodeGroup>
+
+<Warning>
+If a partial ID matches multiple downloads, you'll get an error:
+```
+ambiguous ID prefix 'a1b2' matches 3 downloads
+```
+Use more characters to make the prefix unique.
+</Warning>
+
+## Batch Operations
+
+### Pause All Downloads
+
+```bash
+surge pause --all
+```
+
+### Resume All Downloads
+
+```bash
+surge resume --all
+```
+
+### Conditional Operations
+
+<CodeGroup>
+```bash Pause Active Only
+#!/bin/bash
+# Pause only downloading items
+
+for id in $(surge ls --json | jq -r '.[] | select(.status == "downloading") | .id'); do
+  echo "Pausing: $id"
+  surge pause "$id"
+done
+```
+
+```bash Resume Failed
+#!/bin/bash
+# Resume all errored downloads
+
+for id in $(surge ls --json | jq -r '.[] | select(.status == "error") | .id'); do
+  echo "Resuming: $id"
+  surge resume "$id"
+done
+```
+
+```bash Clean Completed
+#!/bin/bash
+# Remove all completed downloads from queue
+
+for id in $(surge ls --json | jq -r '.[] | select(.status == "completed") | .id'); do
+  echo "Removing: $id"
+  surge rm "$id"
+done
+```
+</CodeGroup>
+
+## Watch Mode
+
+Monitor downloads in real-time with automatic refresh:
+
+```bash
+# Refresh every second
+surge ls --watch
+```
+
+The `--watch` flag clears the screen and updates the download list continuously.
+
+<Info>
+Watch mode is particularly useful when monitoring downloads on remote servers via SSH.
+</Info>
+
+## Mirror Management
+
+Surge supports multiple download sources (mirrors) for redundancy and speed:
+
+```bash
+# Add download with mirrors (comma-separated)
+surge add https://primary.com/file.zip,https://mirror1.com/file.zip,https://mirror2.com/file.zip
+```
+
+Surge will:
+- Distribute workers across all mirrors
+- Automatically handle failover if a mirror fails
+- Maximize download speed by using all sources
+
+### Using Mirrors in Batch Files
+
+```txt urls-with-mirrors.txt
+# Primary URL with two mirrors
+https://primary.com/file1.zip,https://mirror1.com/file1.zip,https://mirror2.com/file1.zip
+
+# Single source
+https://example.com/file2.zip
+
+# Another multi-mirror download
+https://cdn1.example.com/archive.tar.gz,https://cdn2.example.com/archive.tar.gz
+```
+
+```bash
+surge add --batch urls-with-mirrors.txt
+```
+
+## URL Refresh Pattern
+
+Update expired or broken download URLs without losing progress:
+
+<Steps>
+  <Step title="Identify the failed download">
+    ```bash
+    surge ls --json | jq '.[] | select(.status == "error")'
+    ```
+  </Step>
+  
+  <Step title="Get the download ID">
+    ```bash
+    ID=$(surge ls --json | jq -r '.[] | select(.status == "error") | .id' | head -1)
+    ```
+  </Step>
+  
+  <Step title="Update with new URL">
+    ```bash
+    surge refresh $ID https://new-mirror.example.com/file.zip
+    ```
+  </Step>
+  
+  <Step title="Resume the download">
+    ```bash
+    surge resume $ID
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+The `refresh` command is perfect for:
+- Expired signed URLs (S3, Google Drive, etc.)
+- Dead mirrors that need replacement
+- Switching to faster sources mid-download
+</Tip>
+
+## Output Parsing
+
+Leverage JSON output for advanced scripting:
+
+### Extract Specific Fields
+
+<CodeGroup>
+```bash Get All Filenames
+surge ls --json | jq -r '.[].filename'
+```
+
+```bash Total Downloaded Size
+surge ls --json | jq '[.[].downloaded] | add'
+```
+
+```bash Average Speed
+surge ls --json | jq '[.[] | select(.speed > 0) | .speed] | add / length'
+```
+
+```bash Count by Status
+surge ls --json | jq 'group_by(.status) | map({status: .[0].status, count: length})'
+```
+</CodeGroup>
+
+### Progress Monitoring Script
+
+```bash
+#!/bin/bash
+# Advanced progress monitor with statistics
+
+while true; do
+  clear
+  echo "=== Surge Download Monitor ==="
+  echo ""
+  
+  # Get JSON data
+  data=$(surge ls --json)
+  
+  # Statistics
+  total=$(echo "$data" | jq 'length')
+  downloading=$(echo "$data" | jq '[.[] | select(.status == "downloading")] | length')
+  completed=$(echo "$data" | jq '[.[] | select(.status == "completed")] | length')
+  paused=$(echo "$data" | jq '[.[] | select(.status == "paused")] | length')
+  
+  echo "Total: $total | Downloading: $downloading | Completed: $completed | Paused: $paused"
+  echo ""
+  
+  # Active downloads with progress
+  echo "$data" | jq -r '.[] | select(.status == "downloading") | "\(.filename): \(.progress)% @ \(.speed) MB/s"'
+  
+  sleep 3
+done
+```
+
+## Integration Examples
+
+### Discord Notification
+
+```bash
+#!/bin/bash
+# Notify Discord when download completes
+
+WEBHOOK_URL="https://discord.com/api/webhooks/..."
+FILE_URL="$1"
+
+# Start download
+surge server "$FILE_URL" --exit-when-done &
+PID=$!
+
+# Wait for completion
+wait $PID
+
+# Get filename
+FILENAME=$(surge ls --json | jq -r '.[0].filename')
+
+# Send notification
+curl -X POST "$WEBHOOK_URL" \
+  -H "Content-Type: application/json" \
+  -d "{\"content\": \"Download complete: $FILENAME\"}"
+```
+
+### Telegram Bot Integration
+
+```python
+import subprocess
+import json
+import requests
+import sys
+
+BOT_TOKEN = "your-bot-token"
+CHAT_ID = "your-chat-id"
+
+def send_telegram(message):
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    requests.post(url, json={"chat_id": CHAT_ID, "text": message})
+
+def download_and_notify(url):
+    # Start download
+    subprocess.run(["surge", "add", url])
+    
+    # Get download ID
+    result = subprocess.run(
+        ["surge", "ls", "--json"],
+        capture_output=True,
+        text=True
+    )
+    downloads = json.loads(result.stdout)
+    download_id = downloads[0]["id"]
+    filename = downloads[0]["filename"]
+    
+    send_telegram(f"Download started: {filename}")
+    
+    # Monitor progress
+    while True:
+        result = subprocess.run(
+            ["surge", "ls", download_id[:8], "--json"],
+            capture_output=True,
+            text=True
+        )
+        download = json.loads(result.stdout)
+        
+        if download["status"] == "completed":
+            send_telegram(f"Download complete: {filename}")
+            break
+        
+        time.sleep(30)
+
+if __name__ == "__main__":
+    download_and_notify(sys.argv[1])
+```
+
+### Automated Mirror Finder
+
+```bash
+#!/bin/bash
+# Find and add mirrors automatically (example for Ubuntu ISOs)
+
+BASE_FILE="ubuntu-22.04-desktop-amd64.iso"
+
+# List of Ubuntu mirrors
+MIRRORS=(
+  "https://releases.ubuntu.com/22.04"
+  "https://mirror.arizona.edu/ubuntu-releases/22.04"
+  "https://mirror.math.princeton.edu/pub/ubuntu-releases/22.04"
+)
+
+# Build mirror list
+URLs=()
+for mirror in "${MIRRORS[@]}"; do
+  URLs+=("$mirror/$BASE_FILE")
+done
+
+# Join with commas
+MIRROR_LIST=$(IFS=,; echo "${URLs[*]}")
+
+# Download with all mirrors
+echo "Downloading with ${#MIRRORS[@]} mirrors..."
+surge add "$MIRROR_LIST"
+```
+
+## Remote Server Management
+
+Manage Surge running on remote servers:
+
+<CodeGroup>
+```bash Direct Flags
+# Set host and token for each command
+surge --host 192.168.1.10:1700 --token abc123 add https://example.com/file.zip
+surge --host 192.168.1.10:1700 --token abc123 ls --watch
+```
+
+```bash Environment Variables
+# Set once, use everywhere
+export SURGE_HOST="192.168.1.10:1700"
+export SURGE_TOKEN="abc123"
+
+surge add https://example.com/file.zip
+surge ls --watch
+```
+
+```bash SSH Tunnel
+# Secure remote access via SSH tunnel
+ssh -L 1700:localhost:1700 user@remote-server
+
+# In another terminal (tunnel connects to localhost:1700)
+surge add https://example.com/file.zip
+```
+</CodeGroup>
+
+<Warning>
+When using `--host` with public IPs or domains, Surge automatically uses HTTPS. For local/private IPs, it uses HTTP by default.
+
+To force HTTP for non-local hosts, use the `--insecure-http` flag with `surge connect`.
+</Warning>
+
+## Token Management
+
+Get your API token for remote access:
+
+```bash
+# Display token
+surge token
+```
+
+The token is automatically generated on first run and stored in:
+- Linux/macOS: `~/.config/surge/token`
+- Windows: `%APPDATA%\surge\token`
+
+<Tip>
+Set a custom token using the `--token` flag when starting the server:
+
+```bash
+surge server --token my-custom-token
+```
+
+Or use the `SURGE_TOKEN` environment variable.
+</Tip>

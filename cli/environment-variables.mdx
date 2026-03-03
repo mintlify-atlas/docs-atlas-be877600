@@ -1,0 +1,168 @@
+---
+title: "Environment Variables"
+description: "Environment variables for configuring Surge CLI behavior"
+---
+
+Surge supports environment variables for configuration and convenience. These variables can be used instead of command-line flags or to set default values.
+
+## Available Variables
+
+<ParamField path="SURGE_HOST" type="string">
+  Default server host for CLI commands
+  
+  When set, all Surge CLI commands will connect to this server instead of starting a local instance. This is equivalent to passing `--host` on every command.
+  
+  **Usage:**
+  ```bash
+  export SURGE_HOST=127.0.0.1:1700
+  surge ls  # Connects to 127.0.0.1:1700
+  surge add https://example.com/file.zip
+  ```
+  
+  **Format:** `host:port` or `ip:port`
+  
+  <Note>Command-line `--host` flag overrides this environment variable.</Note>
+</ParamField>
+
+<ParamField path="SURGE_TOKEN" type="string">
+  Bearer token for API authentication
+  
+  Sets the default authentication token for API requests. This is useful when connecting to headless servers or remote instances.
+  
+  **Usage:**
+  ```bash
+  export SURGE_TOKEN=abc123def456
+  surge --host 127.0.0.1:1700 add https://example.com/file.zip
+  ```
+  
+  Alternatively, retrieve your token using:
+  ```bash
+  surge token
+  ```
+  
+  <Tip>Store your token in your shell profile (`.bashrc`, `.zshrc`) for persistent sessions.</Tip>
+  
+  <Warning>Never commit tokens to version control or share them publicly.</Warning>
+</ParamField>
+
+## XDG Base Directory Variables (Linux)
+
+On Linux, Surge respects the XDG Base Directory specification for organizing configuration, state, and runtime files.
+
+<ParamField path="XDG_CONFIG_HOME" type="string" default="~/.config">
+  Base directory for configuration files
+  
+  Surge stores `settings.json` in `$XDG_CONFIG_HOME/surge/`.
+  
+  **Default:** `~/.config/surge/`
+</ParamField>
+
+<ParamField path="XDG_STATE_HOME" type="string" default="~/.local/state">
+  Base directory for state files
+  
+  Surge stores the database (`surge.db`), authentication token, and logs in `$XDG_STATE_HOME/surge/`.
+  
+  **Default:** `~/.local/state/surge/`
+</ParamField>
+
+<ParamField path="XDG_RUNTIME_DIR" type="string">
+  Base directory for runtime files
+  
+  Surge stores PID file, port file, and lock file in `$XDG_RUNTIME_DIR/surge/`.
+  
+  **Fallback:** If not set (e.g., in Docker or headless environments), falls back to `$XDG_STATE_HOME/surge/`.
+  
+  <Note>This directory is typically cleared on system reboot and should be located on a tmpfs filesystem.</Note>
+</ParamField>
+
+<ParamField path="XDG_DOWNLOAD_DIR" type="string">
+  Default downloads directory
+  
+  If set and the directory exists, Surge will use this as the default download location when `default_download_dir` in settings.json is empty.
+  
+  **Fallback:** `~/Downloads` or current directory
+</ParamField>
+
+## Platform-Specific Variables
+
+### Windows
+
+<ParamField path="APPDATA" type="string" default="%USERPROFILE%\AppData\Roaming">
+  Application data directory
+  
+  Surge stores all configuration, state, and log files in `%APPDATA%\surge\`.
+</ParamField>
+
+<ParamField path="TEMP" type="string">
+  Temporary files directory
+  
+  Used for runtime files (PID, port, lock) in `%TEMP%\surge\`.
+</ParamField>
+
+### macOS
+
+<ParamField path="TMPDIR" type="string">
+  Temporary files directory
+  
+  Used for runtime files in `$TMPDIR/surge-runtime/`.
+  
+  **Default:** Typically `/var/folders/...`
+</ParamField>
+
+## Priority Order
+
+Configuration values are resolved in the following priority order (highest to lowest):
+
+1. **Command-line flags** (e.g., `--host`, `--token`)
+2. **Environment variables** (e.g., `SURGE_HOST`, `SURGE_TOKEN`)
+3. **Configuration file** (`settings.json`)
+4. **Default values**
+
+## Examples
+
+### Permanent Remote Connection
+
+Set environment variables in your shell profile:
+
+```bash
+# ~/.bashrc or ~/.zshrc
+export SURGE_HOST=192.168.1.100:1700
+export SURGE_TOKEN=$(surge token)
+```
+
+Now all CLI commands connect to the remote server:
+
+```bash
+surge add https://example.com/file.zip
+surge ls
+surge pause abc123
+```
+
+### Custom Configuration Location (Linux)
+
+```bash
+export XDG_CONFIG_HOME=~/my-config
+export XDG_STATE_HOME=~/my-data
+surge  # Uses ~/my-config/surge/ and ~/my-data/surge/
+```
+
+### Session-Specific Token
+
+```bash
+# Temporary override for a single session
+SURGE_TOKEN=temp-token-123 surge --host 127.0.0.1:1700 ls
+```
+
+## Security Considerations
+
+<Warning>
+  **Protect your authentication token:**
+  - Never commit `SURGE_TOKEN` to version control
+  - Use environment variables for CI/CD instead of hardcoding tokens
+  - Restrict file permissions on shell profiles containing tokens
+  - Rotate tokens regularly if compromised
+</Warning>
+
+<Info>
+  The token file in the state directory has `0600` permissions (read/write for owner only) for security.
+</Info>

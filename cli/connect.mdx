@@ -1,0 +1,386 @@
+---
+title: connect
+description: Connect TUI to a running Surge daemon
+---
+
+The `connect` command launches the Terminal User Interface (TUI) connected to a running Surge server, either local or remote.
+
+## Usage
+
+```bash
+surge connect [host:port]
+```
+
+## Description
+
+Connects the Surge TUI to a running server daemon. The command:
+
+- Auto-detects locally running servers when no target is specified
+- Connects to remote servers via HTTP/HTTPS API
+- Provides full TUI functionality for remote download management
+- Supports secure HTTPS connections for remote hosts
+- Validates connection and authentication before starting TUI
+
+<Info>
+This command is a convenience wrapper for remote TUI mode. It's equivalent to running `surge --host <host:port>`.
+</Info>
+
+## Arguments
+
+<ParamField path="host:port" type="string" optional>
+  Target server address in `host:port` format. If omitted, auto-detects a locally running server.
+  
+  Examples:
+  ```bash
+  surge connect 192.168.1.100:1700
+  surge connect localhost:8080
+  ```
+  
+  Can also use full URLs:
+  ```bash
+  surge connect http://localhost:1700
+  surge connect https://remote-server.com:1700
+  ```
+</ParamField>
+
+## Flags
+
+<ParamField path="--insecure-http" type="boolean" default="false">
+  Allow plain HTTP connections for non-loopback targets. By default, remote servers require HTTPS for security.
+  
+  Example:
+  ```bash
+  surge connect 192.168.1.100:1700 --insecure-http
+  ```
+  
+  <Warning>
+  Only use `--insecure-http` on trusted local networks. HTTPS is strongly recommended for remote connections.
+  </Warning>
+</ParamField>
+
+## Examples
+
+### Auto-Detect Local Server
+
+Start server:
+```bash
+surge server
+```
+
+In another terminal:
+```bash
+surge connect
+```
+
+Output:
+```
+Auto-detected local server on port 1700
+Connecting to http://127.0.0.1:1700...
+```
+
+The TUI will launch connected to the local server.
+
+### Connect to Localhost
+
+```bash
+surge connect localhost:1700
+```
+
+Or:
+
+```bash
+surge connect 127.0.0.1:1700
+```
+
+### Connect to Remote Server
+
+Using HTTPS (recommended):
+```bash
+surge connect https://remote-server.com:1700 --token <token>
+```
+
+Using HTTP on local network:
+```bash
+surge connect 192.168.1.100:1700 --insecure-http --token <token>
+```
+
+### With Environment Variables
+
+Set once:
+```bash
+export SURGE_HOST=192.168.1.100:1700
+export SURGE_TOKEN=your-token-here
+```
+
+Then connect:
+```bash
+surge connect
+```
+
+## Connection Modes
+
+### Local Auto-Detection
+
+When no target is specified, `surge connect` reads the port from:
+
+```
+~/.local/state/surge/port
+```
+
+This file is created by `surge` and `surge server` commands.
+
+### HTTP vs HTTPS
+
+| Target Type | Default Scheme | Override |
+|-------------|----------------|----------|
+| `localhost` / `127.0.0.1` | HTTP | Use full URL |
+| Private IP (192.168.x.x, 10.x.x.x) | HTTP | Use full URL |
+| Remote hostname/IP | HTTPS | Use `--insecure-http` |
+| Full URL provided | Use scheme from URL | N/A |
+
+Examples:
+
+```bash
+# Auto HTTP (loopback)
+surge connect localhost:1700
+
+# Auto HTTP (private IP)
+surge connect 192.168.1.100:1700 --insecure-http
+
+# Force HTTPS
+surge connect https://192.168.1.100:1700
+
+# Force HTTP for remote
+surge connect http://example.com:1700 --insecure-http
+```
+
+## Authentication
+
+### Token Resolution
+
+Tokens are resolved in this order:
+
+1. `--token` flag
+2. `SURGE_TOKEN` environment variable
+3. Local token file (for localhost/same machine only)
+
+### Local Servers
+
+For localhost connections, the token is automatically read from:
+
+```
+~/.local/state/surge/token
+```
+
+No need to specify `--token`:
+
+```bash
+surge connect localhost:1700
+```
+
+### Remote Servers
+
+Remote connections require explicit authentication:
+
+```bash
+# Using flag
+surge connect 192.168.1.100:1700 --token abc123...
+
+# Using environment variable
+export SURGE_TOKEN=abc123...
+surge connect 192.168.1.100:1700
+```
+
+Get the token from the remote server:
+
+```bash
+ssh user@192.168.1.100 "surge token"
+```
+
+## TUI Features
+
+When connected, the TUI provides:
+
+- Real-time download progress
+- Add/remove downloads
+- Pause/resume controls
+- Live event stream from server
+- Full keyboard navigation
+- Settings management (reads from remote server)
+
+<Note>
+The TUI operates in remote mode - all actions are sent to the server via HTTP API.
+</Note>
+
+## Error Handling
+
+### No Local Server
+
+```
+No local Surge server detected. Start one with 'surge' or 'surge server', or specify a target: surge connect <host:port>
+```
+
+Solution:
+
+```bash
+# Start a server first
+surge server
+
+# Or connect to remote
+surge connect 192.168.1.100:1700
+```
+
+### Connection Failed
+
+```
+Failed to connect: connection refused
+```
+
+Check that the server is running:
+
+```bash
+surge server status
+```
+
+### Authentication Failed
+
+```
+Failed to connect: 401 Unauthorized
+```
+
+Verify the token:
+
+```bash
+# On server machine
+surge token
+
+# Use correct token
+surge connect 192.168.1.100:1700 --token <correct-token>
+```
+
+### HTTPS Required
+
+```
+Error: refusing insecure HTTP for non-loopback target. Use https:// or --insecure-http
+```
+
+Options:
+
+```bash
+# Use HTTPS
+surge connect https://remote-server.com:1700
+
+# Or allow HTTP (not recommended for internet)
+surge connect 192.168.1.100:1700 --insecure-http
+```
+
+## Use Cases
+
+### Monitor Remote Downloads
+
+Connect to a headless server to monitor downloads:
+
+```bash
+surge connect 192.168.1.100:1700
+```
+
+### Multiple Terminals
+
+Run server in one terminal:
+
+```bash
+surge server
+```
+
+Connect TUI in another:
+
+```bash
+surge connect
+```
+
+Add downloads from a third:
+
+```bash
+surge add https://example.com/file.zip
+```
+
+### SSH Port Forwarding
+
+Securely connect to remote server:
+
+```bash
+# On local machine
+ssh -L 1700:localhost:1700 user@remote-server
+
+# In another terminal
+surge connect localhost:1700
+```
+
+### Container/Docker
+
+Connect to Surge running in a container:
+
+```bash
+# Container exposes port 1700
+docker run -d -p 1700:1700 surge-image surge server
+
+# Connect from host
+surge connect localhost:1700
+```
+
+## Network Configuration
+
+### Firewall Rules
+
+For remote connections, open the port:
+
+```bash
+sudo ufw allow 1700/tcp
+```
+
+### Reverse Proxy
+
+For HTTPS support, use nginx or caddy:
+
+**Nginx:**
+```nginx
+server {
+    listen 443 ssl;
+    server_name surge.example.com;
+    
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+    
+    location / {
+        proxy_pass http://localhost:1700;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+    }
+}
+```
+
+Then connect:
+
+```bash
+surge connect https://surge.example.com --token <token>
+```
+
+## Comparison with --host Flag
+
+These are equivalent:
+
+```bash
+surge connect 192.168.1.100:1700
+surge --host 192.168.1.100:1700
+```
+
+`surge connect` is a dedicated command for clarity, while `--host` can be used with the main `surge` command.
+
+## Related Commands
+
+- [surge](/cli/surge) - Main command (can use `--host` for remote mode)
+- [surge server](/cli/server) - Start headless server
+- [surge token](/cli/token) - Get authentication token
+- [surge add](/cli/add) - Add downloads to connected server

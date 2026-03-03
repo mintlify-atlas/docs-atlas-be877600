@@ -1,0 +1,218 @@
+---
+title: pause
+description: Pause active or queued downloads
+---
+
+The `pause` command pauses one or more downloads by ID.
+
+## Usage
+
+```bash
+surge pause <ID>
+```
+
+## Description
+
+Pauses an active or queued download, preserving its state for later resumption. The command:
+
+- Stops data transfer immediately
+- Saves download progress to a `.surge` state file
+- Updates database with paused status
+- Supports partial ID matching for convenience
+- Can pause all downloads with `--all` flag
+
+<Info>
+Paused downloads retain their position in the queue and can be resumed with the `surge resume` command.
+</Info>
+
+## Arguments
+
+<ParamField path="ID" type="string" required>
+  Download ID (full or partial) to pause. You can use just the first few characters.
+  
+  Example:
+  ```bash
+  surge pause abc12345
+  ```
+</ParamField>
+
+## Flags
+
+<ParamField path="--all" type="boolean" default="false">
+  Pause all active and queued downloads.
+  
+  Example:
+  ```bash
+  surge pause --all
+  ```
+  
+  <Warning>
+  The `--all` flag is currently not fully implemented for remote servers.
+  </Warning>
+</ParamField>
+
+## Examples
+
+### Pause Single Download
+
+Using full ID:
+```bash
+surge pause abc12345-6789-1234-5678-90abcdef1234
+```
+
+Using partial ID:
+```bash
+surge pause abc12345
+```
+
+Output:
+```
+Paused download abc12345
+```
+
+### Pause All Downloads
+
+```bash
+surge pause --all
+```
+
+<Note>
+The `--all` flag currently shows "not yet implemented" when targeting a running server. Use the TUI to pause all downloads.
+</Note>
+
+## Behavior
+
+### State Preservation
+
+When a download is paused:
+
+1. Active network connections are closed
+2. Download progress is written to a `.surge` file
+3. Database status is updated to "paused"
+4. Worker slot is freed for other downloads
+
+### Partial ID Resolution
+
+Surge automatically resolves partial IDs:
+
+```bash
+# These are equivalent if abc12345 is unique:
+surge pause abc
+surge pause abc123
+surge pause abc12345
+```
+
+If multiple downloads match the partial ID, you'll get an error:
+
+```
+Error: multiple downloads match ID "abc"
+```
+
+## Use Cases
+
+### Temporarily Stop Download
+
+Pause a large download to free bandwidth:
+
+```bash
+surge pause abc12345
+```
+
+### Queue Management
+
+Pause lower-priority downloads:
+
+```bash
+surge ls --json | jq -r '.[] | select(.filename | contains("backup")) | .id' | xargs -I {} surge pause {}
+```
+
+### Bandwidth Control
+
+Pause all downloads before a video call:
+
+```bash
+surge pause --all
+```
+
+Resume after:
+
+```bash
+surge resume --all
+```
+
+## Remote Servers
+
+Pause downloads on a remote server:
+
+```bash
+surge pause --host 192.168.1.100:1700 abc12345
+```
+
+Or with environment variable:
+
+```bash
+export SURGE_HOST=192.168.1.100:1700
+surge pause abc12345
+```
+
+## Error Handling
+
+### Download Not Found
+
+```
+Error: download not found: xyz
+```
+
+Verify the ID with:
+
+```bash
+surge ls
+```
+
+### No Server Running
+
+```
+Error: No running Surge server found.
+```
+
+Start Surge first:
+
+```bash
+surge server
+```
+
+### Already Paused
+
+Pausing an already paused download is safe and has no effect:
+
+```bash
+surge pause abc12345
+# Paused download abc12345
+
+surge pause abc12345
+# Paused download abc12345 (no change)
+```
+
+## State File
+
+When paused, download state is saved to:
+
+```
+~/.local/state/surge/downloads/<filename>.surge
+```
+
+This file contains:
+- Download URL and mirrors
+- Total size and downloaded bytes
+- Chunk information for resume
+- Timestamp and metadata
+
+<Tip>
+Don't delete `.surge` files manually - use `surge rm` to properly clean up downloads.
+</Tip>
+
+## Related Commands
+
+- [surge resume](/cli/resume) - Resume paused downloads
+- [surge ls](/cli/ls) - Check download status
+- [surge rm](/cli/rm) - Remove downloads completely

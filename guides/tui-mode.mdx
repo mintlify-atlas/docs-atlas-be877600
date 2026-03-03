@@ -1,0 +1,176 @@
+---
+title: TUI Mode
+description: Learn how to use Surge's interactive Terminal User Interface for managing downloads with keyboard-driven navigation
+---
+
+Surge features a beautiful Terminal User Interface (TUI) built with Bubble Tea and Lipgloss. The TUI provides a keyboard-driven workflow for power users who prefer working in the terminal.
+
+## Starting the TUI
+
+<Steps>
+  <Step title="Launch with default settings">
+    Run `surge` to enter the interactive dashboard:
+
+    ```bash
+    surge
+    ```
+
+    This launches the TUI where you can visualize progress, manage the queue, and see speed graphs.
+  </Step>
+
+  <Step title="Queue downloads on startup">
+    Start the TUI with downloads already queued:
+
+    ```bash
+    surge https://example.com/file1.zip https://example.com/file2.zip
+    ```
+
+    You can combine URLs and batch files:
+
+    ```bash
+    surge https://example.com/file.zip --batch urls.txt
+    ```
+  </Step>
+
+  <Step title="Connect to local server">
+    If you have a Surge server already running, connect to it:
+
+    ```bash
+    surge connect
+    ```
+
+    This auto-detects the local server and opens the TUI interface.
+  </Step>
+</Steps>
+
+## TUI Features
+
+The interactive TUI provides:
+
+- **Real-time Progress Visualization**: See download progress with live speed graphs
+- **Queue Management**: Add, pause, resume, and cancel downloads
+- **Speed Graphs**: Monitor bandwidth utilization across all downloads
+- **Keyboard-Driven Workflow**: Navigate and control downloads without touching the mouse
+
+<Info>
+  The TUI uses Surge's daemon architecture. When you launch the TUI, it starts a background engine. You can open multiple terminal tabs and queue downloads - they all funnel into one efficient manager.
+</Info>
+
+## Common Flags
+
+Enhance your TUI experience with these flags:
+
+<CodeGroup>
+  ```bash Batch file
+  surge --batch urls.txt
+  ```
+
+  ```bash Custom port
+  surge --port 8080
+  ```
+
+  ```bash Custom output directory
+  surge --output /path/to/downloads
+  ```
+
+  ```bash Disable resume
+  surge --no-resume https://example.com/file.zip
+  ```
+
+  ```bash Exit when downloads complete
+  surge --exit-when-done https://example.com/file.zip
+  ```
+</CodeGroup>
+
+## Keyboard Shortcuts
+
+The TUI is designed for keyboard navigation:
+
+| Key | Action |
+| --- | ------ |
+| `↑` / `↓` | Navigate download list |
+| `Enter` | View download details |
+| `Space` | Pause/Resume selected download |
+| `d` | Delete/Cancel download |
+| `a` | Add new download |
+| `s` | Open settings |
+| `q` | Quit TUI |
+| `?` | Show help |
+
+<Tip>
+  The TUI automatically refreshes download statistics every second, so you always have up-to-date information on your downloads.
+</Tip>
+
+## Navigation
+
+The TUI interface is organized into several sections:
+
+- **Download List**: Main view showing all active, paused, and queued downloads
+- **Speed Graph**: Real-time visualization of download speeds
+- **Status Bar**: Shows server connection status and active downloads count
+- **Settings Panel**: Access configuration options without leaving the TUI
+
+## Working with Multiple Downloads
+
+Surge's daemon architecture means:
+
+<Tabs>
+  <Tab title="Single Instance">
+    Only one Surge engine runs in the background, even if you open multiple TUI windows. This ensures efficient resource management.
+  </Tab>
+
+  <Tab title="Queue from Anywhere">
+    You can queue downloads from any terminal tab:
+
+    ```bash
+    # Terminal 1
+    surge
+
+    # Terminal 2 (while TUI is running)
+    surge add https://example.com/file.zip
+    ```
+
+    The new download appears in your TUI automatically.
+  </Tab>
+
+  <Tab title="Settings Sync">
+    Settings changes made in the TUI are immediately available to all connected clients and the server.
+  </Tab>
+</Tabs>
+
+<Warning>
+  If you're running Surge in server mode on a different port, you'll need to use the `--host` flag to connect: `surge --host localhost:8080`
+</Warning>
+
+## Theme Customization
+
+Surge supports adaptive, light, and dark themes. Access theme settings in the TUI:
+
+1. Press `s` to open settings
+2. Navigate to **General** settings
+3. Change the **Theme** setting:
+   - `0` = Adaptive (follows terminal)
+   - `1` = Light mode
+   - `2` = Dark mode
+
+## Clipboard Monitoring
+
+Surge can monitor your system clipboard for URLs:
+
+<Steps>
+  <Step title="Enable clipboard monitoring">
+    In the TUI, press `s` for settings, then enable **Clipboard Monitor** in the General section.
+  </Step>
+
+  <Step title="Copy a URL">
+    When you copy a URL to your clipboard, Surge will detect it and prompt you to download it.
+  </Step>
+
+  <Step title="Confirm or dismiss">
+    Accept the prompt to queue the download, or dismiss it to ignore.
+  </Step>
+</Steps>
+
+<Note>
+  The clipboard monitor is enabled by default. You can disable it in settings if you prefer manual control over downloads.
+</Note>

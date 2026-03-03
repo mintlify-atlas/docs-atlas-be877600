@@ -1,0 +1,162 @@
+---
+title: Pause Endpoint
+description: Pause an active download to resume later
+---
+
+The `/pause` endpoint allows you to pause an active download. Paused downloads can be resumed later from the same position using the [resume endpoint](/api/endpoints/resume).
+
+## POST /pause
+
+Pause a download that is currently active.
+
+### Query Parameters
+
+<ParamField query="id" type="string" required>
+  The unique download ID to pause. This is the ID returned when the download was created.
+</ParamField>
+
+### Request
+
+```bash
+curl -X POST "http://localhost:1700/pause?id=550e8400-e29b-41d4-a716-446655440000" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+### Response
+
+Returns a JSON object confirming the pause operation:
+
+<ResponseField name="status" type="string">
+  Confirmation that the download was paused. Always returns `"paused"`.
+</ResponseField>
+
+<ResponseField name="id" type="string">
+  The ID of the paused download.
+</ResponseField>
+
+### Response Example
+
+```json
+{
+  "status": "paused",
+  "id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "http://localhost:1700/pause?id=550e8400-e29b-41d4-a716-446655440000" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+```javascript JavaScript
+const downloadId = '550e8400-e29b-41d4-a716-446655440000';
+
+const response = await fetch(`http://localhost:1700/pause?id=${downloadId}`, {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_TOKEN'
+  }
+});
+
+const data = await response.json();
+console.log(`Download ${data.id} ${data.status}`);
+```
+
+```python Python
+import requests
+
+download_id = '550e8400-e29b-41d4-a716-446655440000'
+
+response = requests.post(
+    f'http://localhost:1700/pause?id={download_id}',
+    headers={'Authorization': 'Bearer YOUR_TOKEN'}
+)
+
+data = response.json()
+print(f"Download {data['id']} {data['status']}")
+```
+
+</CodeGroup>
+
+## Behavior
+
+When you pause a download:
+
+1. **State is saved**: The current download progress is saved to disk
+2. **Connections close**: All active connections for this download are closed
+3. **Resources freed**: Memory and network resources are released
+4. **Resumable**: The download can be resumed later from the exact same position
+
+## Pausing Multiple Downloads
+
+To pause multiple downloads, you need to make separate API calls for each download ID:
+
+```javascript
+const downloadIds = [
+  '550e8400-e29b-41d4-a716-446655440000',
+  '660e8400-e29b-41d4-a716-446655440001',
+  '770e8400-e29b-41d4-a716-446655440002'
+];
+
+for (const id of downloadIds) {
+  await fetch(`http://localhost:1700/pause?id=${id}`, {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer YOUR_TOKEN' }
+  });
+}
+```
+
+## Error Responses
+
+<Expandable title="400 Bad Request">
+  Returned when the `id` parameter is missing:
+  
+  ```json
+  {
+    "error": "Missing id parameter"
+  }
+  ```
+</Expandable>
+
+<Expandable title="405 Method Not Allowed">
+  Returned when using a method other than POST:
+  
+  ```json
+  {
+    "error": "Method not allowed"
+  }
+  ```
+</Expandable>
+
+<Expandable title="500 Internal Server Error">
+  Returned if the pause operation fails:
+  
+  ```json
+  {
+    "error": "Download not found"
+  }
+  ```
+  
+  Common causes:
+  - Download ID doesn't exist
+  - Download is already paused
+  - Download has already completed
+</Expandable>
+
+## Use Cases
+
+- **Bandwidth Management**: Pause large downloads during peak usage times
+- **User Control**: Let users pause downloads manually through a UI
+- **Resource Constraints**: Free up resources when system load is high
+- **Network Changes**: Pause before switching networks (e.g., WiFi to mobile data)
+- **Scheduled Downloads**: Pause during business hours, resume at night
+
+## Related Endpoints
+
+- [Resume](/api/endpoints/resume) - Resume a paused download
+- [List](/api/endpoints/list) - Check which downloads are paused
+- [Events](/api/endpoints/events) - Receive real-time pause notifications

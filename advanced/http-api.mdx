@@ -1,0 +1,563 @@
+---
+title: HTTP API
+description: REST API reference for programmatic control of Surge downloads
+---
+
+Surge provides a comprehensive HTTP API for remote control and integration. The API is automatically available when running Surge in TUI or server mode.
+
+## API Overview
+
+The Surge HTTP API allows you to:
+- Queue new downloads
+- List and monitor download progress
+- Control download state (pause, resume, delete)
+- Stream real-time events via Server-Sent Events (SSE)
+- Update download URLs for expired links
+
+## Server Configuration
+
+### Starting the API Server
+
+<CodeGroup>
+```bash Default Port (1700)
+# Start with auto-assigned or default port
+surge server
+```
+
+```bash Custom Port
+# Specify custom port
+surge server --port 8080
+```
+
+```bash With Authentication
+# Set custom API token
+surge server --token my-secure-token
+```
+</CodeGroup>
+
+<Info>
+The server binds to `0.0.0.0` (all interfaces) by default, making it accessible from:
+- `localhost` (127.0.0.1)
+- Your local network IP
+- Public IP (if not behind firewall)
+</Info>
+
+### Getting Your Token
+
+The API requires Bearer token authentication:
+
+```bash
+# Display your current token
+surge token
+```
+
+The token is automatically generated on first run and persists across sessions.
+
+## Base URL
+
+The API base URL depends on your configuration:
+
+- **Local server**: `http://127.0.0.1:1700`
+- **Custom port**: `http://127.0.0.1:<port>`
+- **Remote server**: `http://<server-ip>:1700`
+
+<Warning>
+All API requests require authentication via the `Authorization` header:
+
+```
+Authorization: Bearer <your-token>
+```
+</Warning>
+
+## API Endpoints
+
+### Health Check
+
+Check if the API server is running.
+
+<CodeGroup>
+```http Request
+GET /health
+```
+
+```bash cURL
+curl http://localhost:1700/health
+```
+</CodeGroup>
+
+<Accordion title="Response">
+```json
+{
+  "status": "ok",
+  "port": 1700
+}
+```
+</Accordion>
+
+<Note>
+The `/health` endpoint does not require authentication.
+</Note>
+
+### Add Download
+
+Queue a new download.
+
+<CodeGroup>
+```http Request
+POST /download
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{
+  "url": "https://example.com/file.zip",
+  "mirrors": [
+    "https://example.com/file.zip",
+    "https://mirror1.com/file.zip"
+  ],
+  "path": "/custom/output/path"
+}
+```
+
+```bash cURL
+curl -X POST http://localhost:1700/download \
+  -H "Authorization: Bearer $(surge token)" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com/file.zip",
+    "mirrors": ["https://example.com/file.zip", "https://mirror1.com/file.zip"],
+    "path": "/custom/output"
+  }'
+```
+
+```python Python
+import requests
+
+url = "http://localhost:1700/download"
+headers = {
+    "Authorization": "Bearer YOUR_TOKEN",
+    "Content-Type": "application/json"
+}
+data = {
+    "url": "https://example.com/file.zip",
+    "mirrors": [
+        "https://example.com/file.zip",
+        "https://mirror1.com/file.zip"
+    ],
+    "path": "/custom/output"
+}
+
+response = requests.post(url, headers=headers, json=data)
+print(response.json())
+```
+</CodeGroup>
+
+**Request Body**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `url` | string | Yes | Primary download URL |
+| `mirrors` | array | No | List of mirror URLs (includes primary) |
+| `path` | string | No | Custom output directory |
+
+### List Downloads
+
+Get all downloads and their status.
+
+<CodeGroup>
+```http Request
+GET /list
+Authorization: Bearer <token>
+```
+
+```bash cURL
+curl http://localhost:1700/list \
+  -H "Authorization: Bearer $(surge token)"
+```
+
+```python Python
+import requests
+
+url = "http://localhost:1700/list"
+headers = {"Authorization": "Bearer YOUR_TOKEN"}
+
+response = requests.get(url, headers=headers)
+downloads = response.json()
+
+for download in downloads:
+    print(f"{download['filename']}: {download['progress']:.1f}%")
+```
+</CodeGroup>
+
+<Accordion title="Response">
+```json
+[
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "url": "https://example.com/file.zip",
+    "filename": "file.zip",
+    "status": "downloading",
+    "progress": 45.2,
+    "total_size": 1073741824,
+    "downloaded": 485395865,
+    "speed": 12.5,
+    "error": ""
+  }
+]
+```
+</Accordion>
+
+### Get Download Details
+
+Retrieve detailed information for a specific download.
+
+<CodeGroup>
+```http Request
+GET /download?id=<download-id>
+Authorization: Bearer <token>
+```
+
+```bash cURL
+curl "http://localhost:1700/download?id=a1b2c3d4-e5f6-7890-abcd-ef1234567890" \
+  -H "Authorization: Bearer $(surge token)"
+```
+</CodeGroup>
+
+### Pause Download
+
+Pause an active download.
+
+<CodeGroup>
+```http Request
+POST /pause?id=<download-id>
+Authorization: Bearer <token>
+```
+
+```bash cURL
+curl -X POST "http://localhost:1700/pause?id=a1b2c3d4" \
+  -H "Authorization: Bearer $(surge token)"
+```
+</CodeGroup>
+
+<Accordion title="Response">
+```json
+{
+  "status": "paused",
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+}
+```
+</Accordion>
+
+### Resume Download
+
+Resume a paused download.
+
+<CodeGroup>
+```http Request
+POST /resume?id=<download-id>
+Authorization: Bearer <token>
+```
+
+```bash cURL
+curl -X POST "http://localhost:1700/resume?id=a1b2c3d4" \
+  -H "Authorization: Bearer $(surge token)"
+```
+</CodeGroup>
+
+<Accordion title="Response">
+```json
+{
+  "status": "resumed",
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+}
+```
+</Accordion>
+
+### Delete Download
+
+Remove a download from the queue.
+
+<CodeGroup>
+```http Request
+DELETE /delete?id=<download-id>
+Authorization: Bearer <token>
+
+# Also accepts POST
+POST /delete?id=<download-id>
+```
+
+```bash cURL
+curl -X DELETE "http://localhost:1700/delete?id=a1b2c3d4" \
+  -H "Authorization: Bearer $(surge token)"
+```
+</CodeGroup>
+
+<Accordion title="Response">
+```json
+{
+  "status": "deleted",
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+}
+```
+</Accordion>
+
+### Update Download URL
+
+Update the source URL for a paused or errored download.
+
+<CodeGroup>
+```http Request
+PUT /update-url?id=<download-id>
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{
+  "url": "https://new-mirror.example.com/file.zip"
+}
+```
+
+```bash cURL
+curl -X PUT "http://localhost:1700/update-url?id=a1b2c3d4" \
+  -H "Authorization: Bearer $(surge token)" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://new-mirror.example.com/file.zip"}'
+```
+</CodeGroup>
+
+<Accordion title="Response">
+```json
+{
+  "status": "updated",
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "url": "https://new-mirror.example.com/file.zip"
+}
+```
+</Accordion>
+
+<Tip>
+This endpoint is perfect for refreshing expired signed URLs from services like S3, Google Drive, or OneDrive.
+</Tip>
+
+### Download History
+
+Retrieve completed and past downloads.
+
+<CodeGroup>
+```http Request
+GET /history
+Authorization: Bearer <token>
+```
+
+```bash cURL
+curl http://localhost:1700/history \
+  -H "Authorization: Bearer $(surge token)"
+```
+</CodeGroup>
+
+### Real-time Events (SSE)
+
+Stream download events in real-time using Server-Sent Events.
+
+<CodeGroup>
+```http Request
+GET /events
+Authorization: Bearer <token>
+```
+
+```bash cURL
+curl -N http://localhost:1700/events \
+  -H "Authorization: Bearer $(surge token)"
+```
+
+```javascript JavaScript
+const eventSource = new EventSource(
+  'http://localhost:1700/events',
+  {
+    headers: {
+      'Authorization': 'Bearer YOUR_TOKEN'
+    }
+  }
+);
+
+eventSource.addEventListener('download_progress', (event) => {
+  const data = JSON.parse(event.data);
+  console.log(`${data.filename}: ${data.progress}%`);
+});
+
+eventSource.addEventListener('download_complete', (event) => {
+  const data = JSON.parse(event.data);
+  console.log(`Completed: ${data.filename}`);
+});
+```
+
+```python Python
+import requests
+import json
+
+url = "http://localhost:1700/events"
+headers = {"Authorization": "Bearer YOUR_TOKEN"}
+
+response = requests.get(url, headers=headers, stream=True)
+
+for line in response.iter_lines():
+    if line:
+        decoded = line.decode('utf-8')
+        if decoded.startswith('data:'):
+            data = json.loads(decoded[5:])
+            print(f"Event: {data}")
+```
+</CodeGroup>
+
+<Info>
+The `/events` endpoint streams real-time updates for all download state changes, progress updates, and completions.
+</Info>
+
+## Response Codes
+
+| Code | Description |
+|------|-------------|
+| `200 OK` | Request successful |
+| `202 Accepted` | Download queued successfully |
+| `400 Bad Request` | Invalid request (missing parameters) |
+| `401 Unauthorized` | Invalid or missing token |
+| `404 Not Found` | Download ID not found |
+| `405 Method Not Allowed` | Wrong HTTP method |
+| `500 Internal Server Error` | Server error |
+
+## Download Status Values
+
+Downloads can have the following status values:
+
+- `pending` - Queued, waiting to start
+- `downloading` - Actively downloading
+- `paused` - Manually paused
+- `completed` - Download finished successfully
+- `error` - Download failed (see `error` field)
+
+## Integration Examples
+
+### Python Download Manager
+
+```python
+import requests
+import time
+
+class SurgeClient:
+    def __init__(self, host="http://localhost:1700", token=None):
+        self.host = host.rstrip('/')
+        self.token = token
+    
+    def _headers(self):
+        headers = {"Content-Type": "application/json"}
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
+        return headers
+    
+    def add_download(self, url, mirrors=None, path=None):
+        data = {"url": url}
+        if mirrors:
+            data["mirrors"] = mirrors
+        if path:
+            data["path"] = path
+        
+        response = requests.post(
+            f"{self.host}/download",
+            headers=self._headers(),
+            json=data
+        )
+        return response.json()
+    
+    def list_downloads(self):
+        response = requests.get(
+            f"{self.host}/list",
+            headers=self._headers()
+        )
+        return response.json()
+    
+    def pause(self, download_id):
+        response = requests.post(
+            f"{self.host}/pause?id={download_id}",
+            headers=self._headers()
+        )
+        return response.json()
+    
+    def resume(self, download_id):
+        response = requests.post(
+            f"{self.host}/resume?id={download_id}",
+            headers=self._headers()
+        )
+        return response.json()
+
+# Usage
+client = SurgeClient(token="your-token")
+
+# Add download
+client.add_download("https://example.com/file.zip")
+
+# Monitor progress
+while True:
+    downloads = client.list_downloads()
+    active = [d for d in downloads if d['status'] == 'downloading']
+    
+    if not active:
+        break
+    
+    for d in active:
+        print(f"{d['filename']}: {d['progress']:.1f}% @ {d['speed']:.1f} MB/s")
+    
+    time.sleep(2)
+```
+
+### Node.js Web Dashboard
+
+```javascript
+const express = require('express');
+const axios = require('axios');
+
+const app = express();
+const SURGE_API = 'http://localhost:1700';
+const SURGE_TOKEN = 'your-token';
+
+const headers = {
+  'Authorization': `Bearer ${SURGE_TOKEN}`,
+  'Content-Type': 'application/json'
+};
+
+// Add download endpoint
+app.post('/api/download', async (req, res) => {
+  try {
+    const response = await axios.post(
+      `${SURGE_API}/download`,
+      req.body,
+      { headers }
+    );
+    res.json(response.data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// List downloads endpoint
+app.get('/api/downloads', async (req, res) => {
+  try {
+    const response = await axios.get(
+      `${SURGE_API}/list`,
+      { headers }
+    );
+    res.json(response.data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.listen(3000, () => {
+  console.log('Dashboard running on http://localhost:3000');
+});
+```
+
+<Tip>
+For production deployments, consider:
+- Using HTTPS with a reverse proxy (nginx, Caddy)
+- Implementing rate limiting
+- Adding request validation
+- Storing tokens securely (environment variables, secret managers)
+</Tip>

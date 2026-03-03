@@ -1,0 +1,265 @@
+---
+title: resume
+description: Resume paused downloads
+---
+
+The `resume` command resumes one or more paused downloads by ID.
+
+## Usage
+
+```bash
+surge resume <ID>
+```
+
+## Description
+
+Resumes a paused download from where it left off. The command:
+
+- Restores download state from `.surge` file
+- Continues from the last downloaded byte
+- Supports partial ID matching for convenience
+- Can resume all paused downloads with `--all` flag
+- Validates file integrity before resuming
+
+<Info>
+Surge uses HTTP range requests to resume downloads efficiently without re-downloading completed chunks.
+</Info>
+
+## Arguments
+
+<ParamField path="ID" type="string" required>
+  Download ID (full or partial) to resume. You can use just the first few characters.
+  
+  Example:
+  ```bash
+  surge resume abc12345
+  ```
+</ParamField>
+
+## Flags
+
+<ParamField path="--all" type="boolean" default="false">
+  Resume all paused downloads.
+  
+  Example:
+  ```bash
+  surge resume --all
+  ```
+  
+  <Warning>
+  The `--all` flag is currently not fully implemented for remote servers.
+  </Warning>
+</ParamField>
+
+## Examples
+
+### Resume Single Download
+
+Using full ID:
+```bash
+surge resume abc12345-6789-1234-5678-90abcdef1234
+```
+
+Using partial ID:
+```bash
+surge resume abc12345
+```
+
+Output:
+```
+Resumed download abc12345
+```
+
+### Resume All Downloads
+
+```bash
+surge resume --all
+```
+
+<Note>
+The `--all` flag currently shows "not yet implemented" when targeting a running server. Use the TUI to resume all downloads.
+</Note>
+
+## Behavior
+
+### Resume Process
+
+When a download is resumed:
+
+1. State file (`.surge`) is validated
+2. Server is queried for file size and range support
+3. Download continues from last byte position
+4. If server doesn't support ranges, download restarts
+5. Status updates to "active" or "queued"
+
+### Partial ID Resolution
+
+Surge automatically resolves partial IDs:
+
+```bash
+# These are equivalent if abc12345 is unique:
+surge resume abc
+surge resume abc123
+surge resume abc12345
+```
+
+If multiple downloads match:
+
+```
+Error: multiple downloads match ID "abc"
+```
+
+### Auto-Resume on Startup
+
+By default, Surge automatically resumes paused downloads when started:
+
+```bash
+surge  # Auto-resumes paused downloads
+```
+
+Disable with:
+
+```bash
+surge --no-resume
+```
+
+## Use Cases
+
+### Resume After Pause
+
+```bash
+# Pause for bandwidth
+surge pause abc12345
+
+# Resume later
+surge resume abc12345
+```
+
+### Resume Failed Downloads
+
+Resume downloads that errored due to network issues:
+
+```bash
+surge ls --json | jq -r '.[] | select(.status == "error") | .id' | while read id; do
+  surge resume "$id"
+done
+```
+
+### Resume All After Restart
+
+If you started with `--no-resume`, manually resume:
+
+```bash
+surge resume --all
+```
+
+### Selective Resume
+
+Resume only large files:
+
+```bash
+surge ls --json | jq -r '.[] | select(.status == "paused" and .total_size > 1000000000) | .id' | while read id; do
+  surge resume "$id"
+done
+```
+
+## Remote Servers
+
+Resume downloads on a remote server:
+
+```bash
+surge resume --host 192.168.1.100:1700 abc12345
+```
+
+Or with environment variable:
+
+```bash
+export SURGE_HOST=192.168.1.100:1700
+surge resume abc12345
+```
+
+## Error Handling
+
+### Download Not Found
+
+```
+Error: download not found: xyz
+```
+
+List downloads to find the correct ID:
+
+```bash
+surge ls
+```
+
+### Missing State File
+
+If the `.surge` file is missing:
+
+```
+Error: cannot resume - state file missing
+```
+
+The download cannot be resumed and must be removed and re-added.
+
+### No Server Running
+
+```
+Error: No running Surge server found.
+```
+
+Start Surge first:
+
+```bash
+surge
+```
+
+### Already Active
+
+Resuming an active download has no effect:
+
+```bash
+surge resume abc12345
+# Resumed download abc12345
+
+surge resume abc12345
+# Resumed download abc12345 (already active)
+```
+
+### Server Doesn't Support Resume
+
+Some servers don't support HTTP range requests. Surge will:
+
+1. Attempt to resume with Range header
+2. If server returns 200 (instead of 206), restart from beginning
+3. Remove incomplete file and start fresh
+
+## Integrity Validation
+
+Before resuming, Surge validates:
+
+- State file exists and is readable
+- Downloaded file exists at expected path
+- File size matches expected progress
+- Chunk boundaries are valid
+
+If validation fails, the download is marked as corrupted and must be restarted.
+
+## State File Location
+
+Resume state is stored in:
+
+```
+~/.local/state/surge/downloads/<filename>.surge
+```
+
+<Tip>
+Keep `.surge` files until downloads complete. They enable resume functionality.
+</Tip>
+
+## Related Commands
+
+- [surge pause](/cli/pause) - Pause active downloads
+- [surge ls](/cli/ls) - Check download status
+- [surge refresh](/cli/refresh) - Update download URL
+- [surge rm](/cli/rm) - Remove downloads

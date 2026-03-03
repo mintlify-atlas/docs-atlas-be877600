@@ -1,0 +1,357 @@
+---
+title: token
+description: Display the API authentication token
+---
+
+The `token` command prints the authentication token used by the Surge daemon for API access.
+
+## Usage
+
+```bash
+surge token
+```
+
+## Description
+
+Outputs the authentication token to stdout. The command:
+
+- Reads the token from the state directory
+- Generates a new UUID token if none exists
+- Persists the token for future use
+- Outputs only the token (suitable for scripting)
+
+<Info>
+The token is automatically generated on first run and persisted across restarts.
+</Info>
+
+## Output
+
+The command outputs only the token string:
+
+```bash
+surge token
+```
+
+Output:
+```
+550e8400-e29b-41d4-a716-446655440000
+```
+
+## Token Storage
+
+The token is stored in:
+
+```
+~/.local/state/surge/token
+```
+
+Or on older systems:
+
+```
+~/.surge/token
+```
+
+## Use Cases
+
+### Remote API Access
+
+Use the token to authenticate API requests:
+
+```bash
+TOKEN=$(surge token)
+curl -H "Authorization: Bearer $TOKEN" http://localhost:1700/downloads
+```
+
+### Connect Remote TUI
+
+Get token to connect from another machine:
+
+```bash
+# On server
+surge token
+```
+
+Output:
+```
+550e8400-e29b-41d4-a716-446655440000
+```
+
+Then on client:
+```bash
+surge connect 192.168.1.100:1700 --token 550e8400-e29b-41d4-a716-446655440000
+```
+
+### Environment Variable
+
+Set token for automation:
+
+```bash
+export SURGE_TOKEN=$(surge token)
+surge add --host 192.168.1.100:1700 https://example.com/file.zip
+```
+
+### Share Access
+
+Share the token to allow others to control your Surge instance:
+
+```bash
+# Get token
+surge token
+
+# Share with collaborator
+# They can then use:
+export SURGE_HOST=your-ip:1700
+export SURGE_TOKEN=550e8400-e29b-41d4-a716-446655440000
+surge add https://example.com/file.zip
+```
+
+### Scripting
+
+Automated API calls:
+
+```bash
+#!/bin/bash
+TOKEN=$(surge token)
+HOST="http://localhost:1700"
+
+# Add download via API
+curl -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/file.zip"}' \
+  "$HOST/download"
+
+# Check status
+curl -H "Authorization: Bearer $TOKEN" "$HOST/downloads"
+```
+
+## Token Generation
+
+### First Run
+
+On first run, Surge generates a random UUID v4 token:
+
+```
+550e8400-e29b-41d4-a716-446655440000
+```
+
+This token is saved to disk and reused for all future sessions.
+
+### Custom Token
+
+Set a custom token when starting the server:
+
+```bash
+surge server --token my-custom-token-123
+```
+
+This will persist the custom token:
+
+```bash
+surge token
+```
+
+Output:
+```
+my-custom-token-123
+```
+
+## Security
+
+### Token Protection
+
+The token file has restricted permissions:
+
+```bash
+ls -la ~/.local/state/surge/token
+```
+
+Output:
+```
+-rw------- 1 user user 36 Jan 1 12:00 /home/user/.local/state/surge/token
+```
+
+Only the owner can read/write the file (mode 0600).
+
+### Best Practices
+
+<Warning>
+Treat the token like a password. Anyone with the token can control your Surge instance.
+</Warning>
+
+- **Don't commit** tokens to version control
+- **Use HTTPS** when connecting remotely
+- **Regenerate** tokens if exposed:
+  ```bash
+  rm ~/.local/state/surge/token
+  surge server --token new-secure-token-456
+  ```
+- **Restrict access** to the token file
+- **Use firewall rules** to limit who can reach the API port
+
+### Network Security
+
+For local-only access:
+
+```bash
+# Ensure server binds only to localhost
+# (Note: Current version binds to 0.0.0.0)
+# Use firewall to restrict:
+sudo ufw deny 1700
+sudo ufw allow from 127.0.0.1 to any port 1700
+```
+
+For remote access:
+
+```bash
+# Use reverse proxy with HTTPS
+# See surge server docs for nginx/caddy examples
+```
+
+## API Authentication
+
+All API endpoints (except `/health`) require Bearer token authentication:
+
+### Request Format
+
+```bash
+curl -H "Authorization: Bearer $(surge token)" http://localhost:1700/downloads
+```
+
+### Response Codes
+
+- **200 OK** - Valid token, request successful
+- **401 Unauthorized** - Missing or invalid token
+- **403 Forbidden** - Token validation failed
+
+### Example API Calls
+
+**List downloads:**
+```bash
+TOKEN=$(surge token)
+curl -H "Authorization: Bearer $TOKEN" http://localhost:1700/downloads
+```
+
+**Add download:**
+```bash
+TOKEN=$(surge token)
+curl -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/file.zip"}' \
+  http://localhost:1700/download
+```
+
+**Pause download:**
+```bash
+TOKEN=$(surge token)
+curl -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  http://localhost:1700/pause?id=abc12345-6789-1234-5678-90abcdef1234
+```
+
+## Troubleshooting
+
+### Token File Not Found
+
+If the token file doesn't exist, running `surge token` creates it:
+
+```bash
+surge token
+```
+
+A new UUID is generated and saved.
+
+### Permission Denied
+
+```
+Error reading token file: permission denied
+```
+
+Fix permissions:
+
+```bash
+chmod 600 ~/.local/state/surge/token
+```
+
+### Different Token Than Expected
+
+If you set a custom token but `surge token` shows a different one, check:
+
+1. Server is using `--token` flag:
+   ```bash
+   surge server --token my-custom-token
+   ```
+
+2. Token was persisted:
+   ```bash
+   cat ~/.local/state/surge/token
+   ```
+
+## Integration Examples
+
+### Browser Extension
+
+The Surge browser extension uses the token to communicate with the local daemon:
+
+```javascript
+const token = await fetch('http://localhost:1700/token').catch(() => null);
+
+fetch('http://localhost:1700/download', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({ url: downloadUrl })
+});
+```
+
+### Python Script
+
+```python
+import subprocess
+import requests
+
+# Get token
+token = subprocess.check_output(['surge', 'token']).decode().strip()
+
+# Add download
+response = requests.post(
+    'http://localhost:1700/download',
+    headers={'Authorization': f'Bearer {token}'},
+    json={'url': 'https://example.com/file.zip'}
+)
+
+print(response.json())
+```
+
+### Shell Script
+
+```bash
+#!/bin/bash
+TOKEN=$(surge token)
+API="http://localhost:1700"
+
+function surge_api() {
+    local method=$1
+    local endpoint=$2
+    local data=$3
+    
+    curl -X "$method" \
+        -H "Authorization: Bearer $TOKEN" \
+        -H "Content-Type: application/json" \
+        ${data:+-d "$data"} \
+        "$API$endpoint"
+}
+
+# Usage
+surge_api POST /download '{"url": "https://example.com/file.zip"}'
+surge_api GET /downloads
+```
+
+## Related Commands
+
+- [surge server](/cli/server) - Start server with custom token
+- [surge connect](/cli/connect) - Connect TUI using token
+- [surge add](/cli/add) - Add downloads (uses token automatically)

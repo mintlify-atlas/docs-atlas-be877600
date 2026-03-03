@@ -1,0 +1,284 @@
+---
+title: rm
+description: Remove downloads from the queue
+---
+
+The `rm` command removes downloads from the queue and optionally cleans up completed downloads.
+
+## Usage
+
+```bash
+surge rm <ID>
+```
+
+## Aliases
+
+- `kill`
+
+```bash
+surge kill abc12345
+```
+
+## Description
+
+Removes a download from Surge's queue. The command:
+
+- Stops the download if active
+- Removes the database entry
+- Deletes the `.surge` state file
+- Does NOT delete the downloaded file (if any)
+- Can clean all completed downloads with `--clean` flag
+- Supports partial ID matching
+
+<Warning>
+This command does not delete the actual downloaded file. It only removes the download from Surge's tracking.
+</Warning>
+
+## Arguments
+
+<ParamField path="ID" type="string" optional>
+  Download ID (full or partial) to remove. Not required when using `--clean`.
+  
+  Example:
+  ```bash
+  surge rm abc12345
+  ```
+</ParamField>
+
+## Flags
+
+<ParamField path="--clean" type="boolean" default="false">
+  Remove all completed downloads from the database. Does not require an ID argument.
+  
+  Example:
+  ```bash
+  surge rm --clean
+  ```
+</ParamField>
+
+## Examples
+
+### Remove Single Download
+
+Using full ID:
+```bash
+surge rm abc12345-6789-1234-5678-90abcdef1234
+```
+
+Using partial ID:
+```bash
+surge rm abc12345
+```
+
+Output:
+```
+Removed download abc12345
+```
+
+### Clean Completed Downloads
+
+Remove all completed downloads from tracking:
+
+```bash
+surge rm --clean
+```
+
+Output:
+```
+Removed 15 completed downloads.
+```
+
+This is useful to:
+- Clean up the download list
+- Free database space
+- Remove completed downloads from the TUI
+
+<Note>
+The actual downloaded files are NOT deleted - only Surge's tracking records are removed.
+</Note>
+
+### Using Alias
+
+```bash
+surge kill abc12345
+```
+
+## Behavior
+
+### What Gets Removed
+
+When you remove a download:
+
+1. **Active downloads** - Stopped immediately
+2. **Database entry** - Removed from `surge.db`
+3. **State file** - `.surge` file deleted
+4. **Downloaded file** - **NOT** deleted (stays on disk)
+
+### Partial ID Resolution
+
+Surge automatically resolves partial IDs:
+
+```bash
+# These are equivalent if abc12345 is unique:
+surge rm abc
+surge rm abc123
+surge rm abc12345
+```
+
+If multiple downloads match:
+
+```
+Error: multiple downloads match ID "abc"
+```
+
+## Use Cases
+
+### Remove Failed Download
+
+Clean up a download that failed:
+
+```bash
+surge rm abc12345
+```
+
+### Cancel Active Download
+
+Stop and remove an unwanted download:
+
+```bash
+surge rm abc12345
+```
+
+### Clean Up Completed Downloads
+
+Remove all completed downloads to declutter the list:
+
+```bash
+surge rm --clean
+```
+
+### Remove All Failed Downloads
+
+Script to remove all errored downloads:
+
+```bash
+surge ls --json | jq -r '.[] | select(.status == "error") | .id' | while read id; do
+  surge rm "$id"
+done
+```
+
+### Remove Old Downloads
+
+Clean up before starting fresh:
+
+```bash
+surge rm --clean
+```
+
+## Remote Servers
+
+Remove downloads on a remote server:
+
+```bash
+surge rm --host 192.168.1.100:1700 abc12345
+```
+
+With environment variable:
+
+```bash
+export SURGE_HOST=192.168.1.100:1700
+surge rm abc12345
+```
+
+<Info>
+The `--clean` flag works directly on the local database and does not require a running server.
+</Info>
+
+## Error Handling
+
+### Download Not Found
+
+```
+Error: download not found: xyz
+```
+
+List downloads to verify:
+
+```bash
+surge ls
+```
+
+### No Server Running (for specific ID)
+
+```
+Error: No running Surge server found.
+```
+
+For individual downloads, a server must be running. However, `--clean` works without a server.
+
+### Invalid ID Format
+
+```
+Error: invalid download ID
+```
+
+Ensure you're using a valid ID from `surge ls`.
+
+## Clean Flag Details
+
+The `--clean` flag:
+
+- Works directly on the database
+- Does not require a running server
+- Only removes downloads with status "completed"
+- Preserves active, paused, and failed downloads
+- Deletes associated `.surge` state files
+
+```bash
+surge rm --clean
+```
+
+Is equivalent to:
+
+```bash
+surge ls --json | jq -r '.[] | select(.status == "completed") | .id' | while read id; do
+  surge rm "$id"
+done
+```
+
+## File Cleanup
+
+If you want to delete the actual downloaded files:
+
+### Manual Deletion
+
+```bash
+# Get file path from download details
+surge ls abc12345
+
+# Manually delete the file
+rm /path/to/downloaded/file.zip
+
+# Remove from Surge tracking
+surge rm abc12345
+```
+
+### Script for Complete Cleanup
+
+```bash
+# Remove completed downloads and their files
+surge ls --json | jq -r '.[] | select(.status == "completed") | .id' | while read id; do
+  # Note: Getting file path requires parsing download details
+  surge rm "$id"
+done
+```
+
+<Tip>
+Use the TUI's delete functionality (Shift+D) if you want to remove both the download record and the file.
+</Tip>
+
+## Related Commands
+
+- [surge ls](/cli/ls) - List downloads to find IDs
+- [surge pause](/cli/pause) - Pause instead of removing
+- [surge resume](/cli/resume) - Resume paused downloads

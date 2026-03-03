@@ -1,0 +1,402 @@
+---
+title: Docker
+description: Run Surge in a Docker container with Docker Compose for isolated, reproducible download management
+---
+
+Surge provides an official Docker image for running the download manager in a containerized environment. This is perfect for servers, NAS devices, and cloud deployments.
+
+## Quick Start
+
+<Steps>
+  <Step title="Download compose file">
+    Download the official Docker Compose configuration:
+
+    ```bash
+    wget https://raw.githubusercontent.com/surge-downloader/surge/refs/heads/main/docker/compose.yml
+    ```
+  </Step>
+
+  <Step title="Start the container">
+    Launch Surge in detached mode:
+
+    ```bash
+    docker compose up -d
+    ```
+
+    The container starts in server mode and binds to port 1700.
+  </Step>
+
+  <Step title="Get the API token">
+    Retrieve the authentication token:
+
+    ```bash
+    docker compose exec surge surge token
+    ```
+
+    Save this token - you'll need it for API requests and remote connections.
+  </Step>
+</Steps>
+
+## Docker Compose Configuration
+
+Here's the complete Docker Compose configuration:
+
+```yaml docker/compose.yml
+services:
+  surge:
+    image: ghcr.io/surge-downloader/surge
+    container_name: surge
+    ports:
+      - "1700:1700"
+    volumes:
+      - ./downloads:/downloads
+      - ./surge-config:/root/.local/state/surge
+    restart: unless-stopped
+    environment:
+      - TZ=UTC
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+```
+
+## Volume Mounts
+
+The Docker setup uses two volume mounts:
+
+<Tabs>
+  <Tab title="Downloads">
+    **Mount**: `./downloads:/downloads`
+
+    This is where downloaded files are stored. Map it to your preferred location:
+
+    ```yaml
+    volumes:
+      - /mnt/storage/downloads:/downloads
+    ```
+  </Tab>
+
+  <Tab title="Configuration & State">
+    **Mount**: `./surge-config:/root/.local/state/surge`
+
+    Stores the database, logs, and authentication token. This persists download history across container restarts:
+
+    ```yaml
+    volumes:
+      - ./surge-config:/root/.local/state/surge
+    ```
+  </Tab>
+</Tabs>
+
+<Info>
+  The configuration volume contains `surge.db` (download database), `token` (API token), and `logs/` (application logs).
+</Info>
+
+## Professional Deployment
+
+For production environments, use isolated volumes:
+
+```yaml
+services:
+  surge:
+    image: ghcr.io/surge-downloader/surge
+    container_name: surge
+    ports:
+      - "1700:1700"
+    volumes:
+      - ~/docker/volumes/surge/downloads:/downloads
+      - ~/docker/volumes/surge/config:/root/.local/state/surge
+    restart: unless-stopped
+    environment:
+      - TZ=America/New_York
+```
+
+## Building from Source
+
+Build the image locally instead of pulling from the registry:
+
+```yaml
+services:
+  surge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # ... rest of configuration
+```
+
+Then build and start:
+
+```bash
+docker compose build
+docker compose up -d
+```
+
+## Dockerfile
+
+The official Dockerfile is based on Alpine Linux:
+
+```dockerfile docker/Dockerfile
+FROM alpine:3.21
+
+RUN apk add --no-cache ca-certificates curl jq
+
+ARG SURGE_VERSION=""
+
+RUN ARCH=$(uname -m) && \
+    case ${ARCH} in \
+        x86_64) SURGE_ARCH="amd64" ;; \
+        aarch64) SURGE_ARCH="arm64" ;; \
+        armv7l) SURGE_ARCH="arm" ;; \
+        *) echo "Unsupported architecture: ${ARCH}" && exit 1 ;; \
+    esac && \
+    if [ -z "$SURGE_VERSION" ]; then \
+        SURGE_VERSION=$(curl -s https://api.github.com/repos/surge-downloader/surge/releases/latest | jq -r .tag_name | sed 's/^v//'); \
+    fi && \
+    curl -L -o /tmp/surge.tar.gz \
+        "https://github.com/surge-downloader/surge/releases/download/v${SURGE_VERSION}/surge_${SURGE_VERSION}_linux_${SURGE_ARCH}.tar.gz" && \
+    tar -xzf /tmp/surge.tar.gz -C /usr/local/bin && \
+    rm /tmp/surge.tar.gz && \
+    chmod +x /usr/local/bin/surge
+
+RUN mkdir -p /root/.local/state/surge/logs /downloads
+
+WORKDIR /downloads
+
+EXPOSE 1700
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD surge server status || exit 1
+
+CMD ["surge", "server", "start"]
+```
+
+## Managing the Container
+
+<Steps>
+  <Step title="View logs">
+    ```bash
+    docker compose logs -f surge
+    ```
+
+    Follow logs in real-time.
+  </Step>
+
+  <Step title="Check downloads">
+    ```bash
+    docker compose exec surge surge ls
+    ```
+
+    List all downloads in the container.
+  </Step>
+
+  <Step title="Add download">
+    ```bash
+    docker compose exec surge surge add https://example.com/file.zip
+    ```
+  </Step>
+
+  <Step title="Restart container">
+    ```bash
+    docker compose restart surge
+    ```
+  </Step>
+
+  <Step title="Stop container">
+    ```bash
+    docker compose down
+    ```
+  </Step>
+</Steps>
+
+## Resource Limits
+
+The default configuration limits resources to prevent runaway usage:
+
+```yaml
+deploy:
+  resources:
+    limits:
+      cpus: '0.5'
+      memory: 256M
+```
+
+Adjust based on your workload:
+
+<CodeGroup>
+  ```yaml High Performance
+  deploy:
+    resources:
+      limits:
+        cpus: '2.0'
+        memory: 1G
+  ```
+
+  ```yaml Low Resource
+  deploy:
+    resources:
+      limits:
+        cpus: '0.25'
+        memory: 128M
+  ```
+</CodeGroup>
+
+## Environment Variables
+
+Customize the container with environment variables:
+
+| Variable | Description | Default |
+| -------- | ----------- | ------- |
+| `TZ` | Timezone for logs | `UTC` |
+
+Example:
+
+```yaml
+environment:
+  - TZ=America/Los_Angeles
+```
+
+## Connecting to Docker Container
+
+Connect to the containerized Surge server from your host:
+
+<Steps>
+  <Step title="Get the token">
+    ```bash
+    docker compose exec surge surge token
+    ```
+  </Step>
+
+  <Step title="Connect with TUI">
+    ```bash
+    surge connect localhost:1700 --token <your-token>
+    ```
+  </Step>
+</Steps>
+
+Or use environment variables:
+
+```bash
+export SURGE_TOKEN=$(docker compose exec surge surge token)
+surge connect localhost:1700 --token $SURGE_TOKEN
+```
+
+## Health Checks
+
+The container includes a health check:
+
+```dockerfile
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD surge server status || exit 1
+```
+
+Check health status:
+
+```bash
+docker inspect --format='{{.State.Health.Status}}' surge
+```
+
+<Note>
+  The health check runs every 30 seconds. If the server fails 3 consecutive checks, the container is marked unhealthy.
+</Note>
+
+## Log Management
+
+Docker logs are configured with rotation:
+
+```yaml
+logging:
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+```
+
+This keeps the 3 most recent log files, each up to 10MB.
+
+## Networking
+
+### Local Network Access
+
+The container binds to `0.0.0.0:1700`, making it accessible on your local network:
+
+- **Localhost**: `http://localhost:1700`
+- **LAN**: `http://<host-ip>:1700`
+
+### Custom Port
+
+Change the exposed port:
+
+```yaml
+ports:
+  - "8080:1700"
+```
+
+Now access Surge on `http://localhost:8080`.
+
+### Reverse Proxy
+
+For production, use a reverse proxy:
+
+<CodeGroup>
+  ```nginx Nginx
+  server {
+      listen 80;
+      server_name surge.example.com;
+
+      location / {
+          proxy_pass http://localhost:1700;
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+      }
+  }
+  ```
+
+  ```caddyfile Caddy
+  surge.example.com {
+      reverse_proxy localhost:1700
+  }
+  ```
+</CodeGroup>
+
+<Warning>
+  Always use HTTPS when exposing Surge to the internet. The API token is sensitive and should not be transmitted over plaintext.
+</Warning>
+
+## Troubleshooting
+
+<Steps>
+  <Step title="Container won't start">
+    Check logs for errors:
+
+    ```bash
+    docker compose logs surge
+    ```
+  </Step>
+
+  <Step title="Permission issues">
+    Ensure volume directories have correct permissions:
+
+    ```bash
+    chmod -R 755 ./downloads ./surge-config
+    ```
+  </Step>
+
+  <Step title="Port already in use">
+    Change the host port in compose.yml:
+
+    ```yaml
+    ports:
+      - "1701:1700"
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+  For development, you can comment out the health check to reduce container overhead.
+</Tip>

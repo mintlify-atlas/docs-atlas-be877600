@@ -1,0 +1,155 @@
+---
+title: "Global Flags"
+description: "Command-line flags available across all Surge CLI commands"
+---
+
+Global flags are persistent flags that can be used with any Surge command. These flags control connection settings, authentication, and logging behavior.
+
+## Available Flags
+
+<ParamField path="--host" type="string">
+  Server host to connect/control (e.g., `127.0.0.1:1700`)
+  
+  **Environment Variable:** `SURGE_HOST`
+  
+  When specified, the CLI will connect to a remote or local Surge server instead of starting a new instance. This is useful for controlling headless servers or remote instances.
+  
+  ```bash
+  surge --host 127.0.0.1:1700 add https://example.com/file.zip
+  ```
+</ParamField>
+
+<ParamField path="--token" type="string">
+  Bearer token for API authentication
+  
+  **Environment Variable:** `SURGE_TOKEN`
+  
+  Required when connecting to a server with authentication enabled. If not provided via flag or environment variable, Surge will attempt to read the token from the local token file.
+  
+  ```bash
+  surge --token abc123 --host 127.0.0.1:1700 ls
+  ```
+  
+  <Tip>Use `surge token` to print your current authentication token.</Tip>
+</ParamField>
+
+<ParamField path="--verbose" type="boolean" default="false">
+  Enable verbose logging
+  
+  **Short flag:** `-v`
+  
+  When enabled, Surge will output detailed debug information to help troubleshoot issues. Logs are written to the logs directory.
+  
+  ```bash
+  surge -v add https://example.com/file.zip
+  ```
+</ParamField>
+
+## Command-Specific Flags
+
+The following flags are available for the root command (`surge [url]...`) and `surge server`:
+
+<ParamField path="--batch" type="string">
+  File containing URLs to download (one per line)
+  
+  **Short flag:** `-b`
+  
+  Accepts a file path containing URLs to download. Each URL should be on its own line. Lines starting with `#` are treated as comments and ignored.
+  
+  ```bash
+  surge --batch urls.txt
+  ```
+  
+  **Example batch file:**
+  ```text
+  # Download these files
+  https://example.com/file1.zip
+  https://example.com/file2.tar.gz
+  
+  # Mirror example (comma-separated)
+  https://mirror1.com/file.iso,https://mirror2.com/file.iso
+  ```
+</ParamField>
+
+<ParamField path="--port" type="integer" default="0">
+  Port to listen on for HTTP API
+  
+  **Short flag:** `-p`
+  
+  Specifies the port for the HTTP server. If set to `0` (default), Surge will automatically find an available port starting from 1700.
+  
+  ```bash
+  surge --port 8080
+  ```
+  
+  <Note>The selected port is saved to the runtime directory and used by the browser extension and CLI for autodiscovery.</Note>
+</ParamField>
+
+<ParamField path="--output" type="string">
+  Default output directory for downloads
+  
+  **Short flag:** `-o`
+  
+  Specifies where downloaded files should be saved. If not provided, uses the `default_download_dir` from settings.json, or the current directory as a fallback.
+  
+  ```bash
+  surge --output ~/Downloads add https://example.com/file.zip
+  ```
+</ParamField>
+
+<ParamField path="--no-resume" type="boolean" default="false">
+  Do not auto-resume paused downloads on startup
+  
+  By default, Surge respects the `auto_resume` setting in settings.json. This flag overrides that behavior and prevents automatic resumption of paused downloads.
+  
+  ```bash
+  surge --no-resume
+  ```
+</ParamField>
+
+<ParamField path="--exit-when-done" type="boolean" default="false">
+  Exit when all downloads complete
+  
+  Useful for automation and scripting. Surge will automatically quit when all active downloads finish.
+  
+  ```bash
+  surge --exit-when-done --batch urls.txt
+  ```
+  
+  <Tip>Combine with `--batch` for unattended batch downloads.</Tip>
+</ParamField>
+
+## Flag Priority
+
+When both a command-line flag and environment variable are set, the command-line flag takes precedence:
+
+1. Command-line flag (highest priority)
+2. Environment variable
+3. Configuration file
+4. Default value (lowest priority)
+
+## Examples
+
+### Connect to Remote Server
+
+```bash
+surge --host 192.168.1.100:1700 --token mytoken123 ls
+```
+
+### Batch Download with Custom Output
+
+```bash
+surge --batch downloads.txt --output /mnt/storage --exit-when-done
+```
+
+### Verbose Logging for Debugging
+
+```bash
+surge -v add https://example.com/large-file.iso
+```
+
+### Start Server on Specific Port
+
+```bash
+surge server --port 9000
+```

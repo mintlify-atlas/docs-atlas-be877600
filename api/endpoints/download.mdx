@@ -1,0 +1,297 @@
+---
+title: Download Endpoint
+description: Start new downloads and query download status
+---
+
+The `/download` endpoint allows you to start new downloads and query the status of existing downloads.
+
+## POST /download
+
+Start a new download.
+
+### Request Body
+
+<ParamField body="url" type="string" required>
+  The URL of the file to download. This is the only required parameter.
+</ParamField>
+
+<ParamField body="filename" type="string">
+  Custom filename for the downloaded file. If not provided, Surge will extract the filename from the URL or Content-Disposition header.
+</ParamField>
+
+<ParamField body="path" type="string">
+  Destination directory path. Can be absolute or relative depending on the `relative_to_default_dir` flag.
+</ParamField>
+
+<ParamField body="relative_to_default_dir" type="boolean" default={false}>
+  If `true`, the `path` parameter is treated as relative to the default download directory configured in settings.
+</ParamField>
+
+<ParamField body="mirrors" type="array">
+  Array of mirror URLs to use for accelerated downloads. Surge will use these mirrors in addition to the primary URL.
+  
+  ```json
+  ["https://mirror1.example.com/file.zip", "https://mirror2.example.com/file.zip"]
+  ```
+</ParamField>
+
+<ParamField body="skip_approval" type="boolean" default={false}>
+  Skip duplicate download checks and user prompts. Useful for automated downloads from trusted sources like browser extensions.
+</ParamField>
+
+<ParamField body="headers" type="object">
+  Custom HTTP headers to include in download requests. Useful for authentication, cookies, or other request customization.
+  
+  ```json
+  {
+    "Cookie": "session=abc123",
+    "User-Agent": "Custom/1.0"
+  }
+  ```
+</ParamField>
+
+### Response
+
+Returns a JSON object with the download ID and status:
+
+<ResponseField name="id" type="string">
+  Unique identifier for the download. Use this ID with other endpoints to control the download.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Initial status of the download, typically `"queued"`.
+</ResponseField>
+
+<ResponseField name="url" type="string">
+  The URL being downloaded.
+</ResponseField>
+
+### Examples
+
+<CodeGroup>
+
+```bash Basic Download
+curl -X POST http://localhost:1700/download \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/file.zip"}'
+```
+
+```bash Custom Path and Filename
+curl -X POST http://localhost:1700/download \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com/file.zip",
+    "filename": "my-file.zip",
+    "path": "/downloads/important"
+  }'
+```
+
+```bash With Mirrors
+curl -X POST http://localhost:1700/download \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com/file.zip",
+    "mirrors": [
+      "https://mirror1.example.com/file.zip",
+      "https://mirror2.example.com/file.zip"
+    ]
+  }'
+```
+
+```bash With Custom Headers
+curl -X POST http://localhost:1700/download \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com/protected/file.zip",
+    "headers": {
+      "Cookie": "session=abc123",
+      "Authorization": "Bearer site-token"
+    }
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:1700/download', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_TOKEN',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    url: 'https://example.com/file.zip',
+    filename: 'my-download.zip'
+  })
+});
+
+const data = await response.json();
+console.log('Download ID:', data.id);
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'http://localhost:1700/download',
+    headers={'Authorization': 'Bearer YOUR_TOKEN'},
+    json={
+        'url': 'https://example.com/file.zip',
+        'filename': 'my-download.zip'
+    }
+)
+
+data = response.json()
+print(f"Download ID: {data['id']}")
+```
+
+</CodeGroup>
+
+### Response Example
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "queued",
+  "url": "https://example.com/file.zip"
+}
+```
+
+## GET /download
+
+Query the status of a specific download.
+
+### Query Parameters
+
+<ParamField query="id" type="string" required>
+  The unique download ID returned when the download was created.
+</ParamField>
+
+### Response
+
+Returns detailed status information about the download:
+
+<ResponseField name="id" type="string">
+  Unique identifier for the download.
+</ResponseField>
+
+<ResponseField name="url" type="string">
+  The URL being downloaded.
+</ResponseField>
+
+<ResponseField name="filename" type="string">
+  The filename of the download.
+</ResponseField>
+
+<ResponseField name="dest_path" type="string">
+  Full absolute path to the destination file.
+</ResponseField>
+
+<ResponseField name="total_size" type="integer">
+  Total file size in bytes.
+</ResponseField>
+
+<ResponseField name="downloaded" type="integer">
+  Number of bytes downloaded so far.
+</ResponseField>
+
+<ResponseField name="progress" type="number">
+  Download progress as a percentage (0-100).
+</ResponseField>
+
+<ResponseField name="speed" type="number">
+  Current download speed in MB/s.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Current status: `"queued"`, `"downloading"`, `"paused"`, `"completed"`, or `"error"`.
+</ResponseField>
+
+<ResponseField name="error" type="string">
+  Error message if status is `"error"`.
+</ResponseField>
+
+<ResponseField name="eta" type="integer">
+  Estimated time remaining in seconds.
+</ResponseField>
+
+<ResponseField name="connections" type="integer">
+  Number of active connections.
+</ResponseField>
+
+<ResponseField name="added_at" type="integer">
+  Unix timestamp when the download was added.
+</ResponseField>
+
+<ResponseField name="time_taken" type="integer">
+  Total time taken in milliseconds (for completed downloads).
+</ResponseField>
+
+<ResponseField name="avg_speed" type="number">
+  Average download speed in bytes/sec (for completed downloads).
+</ResponseField>
+
+### Example
+
+```bash
+curl "http://localhost:1700/download?id=550e8400-e29b-41d4-a716-446655440000" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+### Response Example
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "url": "https://example.com/file.zip",
+  "filename": "file.zip",
+  "dest_path": "/home/user/downloads/file.zip",
+  "total_size": 104857600,
+  "downloaded": 52428800,
+  "progress": 50.0,
+  "speed": 5.2,
+  "status": "downloading",
+  "eta": 10,
+  "connections": 8,
+  "added_at": 1709481600
+}
+```
+
+## Error Responses
+
+<Expandable title="400 Bad Request">
+  Returned when required parameters are missing or invalid:
+  
+  ```json
+  {
+    "error": "URL is required"
+  }
+  ```
+  
+  Common causes:
+  - Missing `url` parameter in POST request
+  - Invalid path (contains `..`)
+  - Invalid filename (contains `/` or `\`)
+</Expandable>
+
+<Expandable title="404 Not Found">
+  Returned when querying a download ID that doesn't exist:
+  
+  ```json
+  {
+    "error": "Download not found"
+  }
+  ```
+</Expandable>
+
+<Expandable title="405 Method Not Allowed">
+  Returned when using an incorrect HTTP method:
+  
+  ```json
+  {
+    "error": "Method not allowed"
+  }
+  ```
+</Expandable>

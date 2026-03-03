@@ -1,0 +1,489 @@
+---
+title: server
+description: Run Surge in headless server mode
+---
+
+The `server` command runs Surge as a background daemon without the TUI, exposing an HTTP API for remote control.
+
+## Usage
+
+```bash
+surge server [url]...
+```
+
+## Description
+
+Starts Surge in headless server mode. The command:
+
+- Runs without a Terminal User Interface
+- Exposes HTTP API on specified port (default: 1700+)
+- Logs download events to stdout
+- Supports browser extension integration
+- Can be controlled via CLI commands (`surge add`, `surge ls`, etc.)
+- Runs until manually stopped or all downloads complete (with `--exit-when-done`)
+
+<Info>
+Server mode is ideal for running Surge on headless systems, remote servers, or as a background service.
+</Info>
+
+## Arguments
+
+<ParamField path="url" type="string" optional>
+  One or more URLs to download on startup. URLs can include mirrors using comma separation.
+  
+  Example:
+  ```bash
+  surge server https://example.com/file1.zip https://example.com/file2.zip
+  ```
+</ParamField>
+
+## Flags
+
+<ParamField path="--batch" type="string" default="">
+  Path to a file containing URLs to download (one per line).
+  
+  Short form: `-b`
+  
+  Example:
+  ```bash
+  surge server --batch downloads.txt
+  ```
+</ParamField>
+
+<ParamField path="--port" type="integer" default="0">
+  Port to listen on for HTTP API. If 0, automatically finds an available port starting from 1700.
+  
+  Short form: `-p`
+  
+  Example:
+  ```bash
+  surge server --port 1700
+  ```
+</ParamField>
+
+<ParamField path="--output" type="string" default="">
+  Default output directory for downloads. If not specified, uses configured default directory.
+  
+  Short form: `-o`
+  
+  Example:
+  ```bash
+  surge server --output /data/downloads
+  ```
+</ParamField>
+
+<ParamField path="--exit-when-done" type="boolean" default="false">
+  Exit automatically when all downloads complete. Useful for batch processing.
+  
+  Example:
+  ```bash
+  surge server --batch urls.txt --exit-when-done
+  ```
+</ParamField>
+
+<ParamField path="--no-resume" type="boolean" default="false">
+  Do not automatically resume paused downloads from previous sessions on startup.
+  
+  Example:
+  ```bash
+  surge server --no-resume
+  ```
+</ParamField>
+
+<ParamField path="--token" type="string" default="">
+  Set custom authentication token for API clients. If not provided, generates and persists a random UUID.
+  
+  Can also be set via `SURGE_TOKEN` environment variable.
+  
+  Example:
+  ```bash
+  surge server --token my-secret-token-123
+  ```
+</ParamField>
+
+## Subcommands
+
+### start
+
+Alias for `surge server`:
+
+```bash
+surge server start [url]...
+```
+
+Accepts the same flags as `surge server`.
+
+### stop
+
+Stop a running Surge server:
+
+```bash
+surge server stop
+```
+
+Sends SIGTERM to the server process identified by PID file.
+
+### status
+
+Check if Surge server is running:
+
+```bash
+surge server status
+```
+
+Output:
+```
+Surge server is running (PID: 12345, Port: 1700).
+```
+
+Or:
+```
+Surge server is NOT running.
+```
+
+## Examples
+
+### Basic Server Start
+
+```bash
+surge server
+```
+
+Output:
+```
+Startup integrity check: no issues found
+Surge v1.0.0 running in server mode.
+Serving on 0.0.0.0:1700
+Press Ctrl+C to exit.
+```
+
+### Start with Downloads
+
+```bash
+surge server https://example.com/file1.zip https://example.com/file2.zip
+```
+
+Output:
+```
+Startup integrity check: no issues found
+Surge v1.0.0 running in server mode.
+Serving on 0.0.0.0:1700
+Press Ctrl+C to exit.
+Queued: file1.zip [abc12345]
+Queued: file2.zip [def67890]
+Started: file1.zip [abc12345]
+```
+
+### Batch Processing
+
+```bash
+surge server --batch downloads.txt --exit-when-done
+```
+
+Processes all URLs in the file and exits when complete.
+
+### Custom Port and Output
+
+```bash
+surge server --port 8080 --output /mnt/storage/downloads
+```
+
+### With Custom Token
+
+```bash
+surge server --token my-secure-token-123
+```
+
+Or using environment variable:
+
+```bash
+export SURGE_TOKEN=my-secure-token-123
+surge server
+```
+
+### Check Status
+
+```bash
+surge server status
+```
+
+### Stop Server
+
+```bash
+surge server stop
+```
+
+Output:
+```
+Sent stop signal to process 12345
+```
+
+## Server Output
+
+### Event Logging
+
+The server logs download events to stdout:
+
+```
+Queued: ubuntu-22.04.iso [abc12345]
+Started: ubuntu-22.04.iso [abc12345]
+Completed: ubuntu-22.04.iso [abc12345] (in 5m23s)
+Error: broken-link.zip [def67890]: 404 Not Found
+Paused: large-file.tar.gz [ghi11121]
+Resumed: large-file.tar.gz [ghi11121]
+Removed: old-download.zip [jkl99999]
+```
+
+### Startup Messages
+
+```
+Startup integrity check: no issues found
+```
+
+Or if issues were found:
+
+```
+Startup integrity check: removed 3 corrupted/orphaned downloads
+```
+
+## API Server
+
+### Endpoints
+
+The server exposes these HTTP endpoints:
+
+- `POST /download` - Add new download
+- `GET /download?id=<id>` - Get download status
+- `GET /downloads` - List all downloads
+- `POST /pause?id=<id>` - Pause download
+- `POST /resume?id=<id>` - Resume download
+- `POST /delete?id=<id>` - Remove download
+- `PUT /update-url?id=<id>` - Update download URL
+- `GET /health` - Health check (no auth required)
+- `GET /events` - Server-Sent Events stream
+
+### Authentication
+
+All endpoints (except `/health`) require Bearer token authentication:
+
+```bash
+curl -H "Authorization: Bearer <token>" http://localhost:1700/downloads
+```
+
+Get the token:
+
+```bash
+surge token
+```
+
+### CORS
+
+The server enables CORS for browser extension integration:
+
+- `Access-Control-Allow-Origin: *`
+- Supports private network access
+- Handles preflight OPTIONS requests
+
+## Controlling the Server
+
+### Add Downloads
+
+```bash
+surge add https://example.com/file.zip
+```
+
+### List Downloads
+
+```bash
+surge ls
+```
+
+### Pause/Resume
+
+```bash
+surge pause abc12345
+surge resume abc12345
+```
+
+### Remove Downloads
+
+```bash
+surge rm abc12345
+```
+
+### Connect TUI
+
+Connect a TUI to the running server:
+
+```bash
+surge connect
+```
+
+## Process Management
+
+### PID File
+
+Server writes its PID to:
+
+```
+~/.local/state/surge/pid
+```
+
+### Port File
+
+Server writes its port to:
+
+```
+~/.local/state/surge/port
+```
+
+This allows CLI commands to auto-detect the running server.
+
+### Lock File
+
+Prevents multiple instances from running simultaneously.
+
+## Daemon Mode
+
+### Using nohup
+
+```bash
+nohup surge server &> surge.log &
+```
+
+### Using systemd
+
+Create `/etc/systemd/system/surge.service`:
+
+```ini
+[Unit]
+Description=Surge Download Manager
+After=network.target
+
+[Service]
+Type=simple
+User=youruser
+WorkingDirectory=/home/youruser
+ExecStart=/usr/local/bin/surge server --port 1700
+Restart=on-failure
+StandardOutput=append:/var/log/surge/surge.log
+StandardError=append:/var/log/surge/surge.log
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
+
+```bash
+sudo systemctl enable surge
+sudo systemctl start surge
+sudo systemctl status surge
+```
+
+### Using Docker
+
+```dockerfile
+FROM alpine:latest
+RUN apk add --no-cache surge
+EXPOSE 1700
+CMD ["surge", "server", "--port", "1700"]
+```
+
+## Exit Behavior
+
+### Normal Exit
+
+Press Ctrl+C or send SIGTERM:
+
+```
+Received interrupt. Shutting down...
+```
+
+### Exit When Done
+
+With `--exit-when-done`, server exits when all downloads complete:
+
+```
+All downloads finished. Exiting...
+```
+
+### Cleanup
+
+On exit, the server:
+- Pauses active downloads
+- Closes all connections
+- Removes PID and port files
+- Releases lock file
+
+## Remote Access
+
+### Bind Address
+
+Server binds to `0.0.0.0` by default, accepting connections from any interface.
+
+### Firewall
+
+Open the port in your firewall:
+
+```bash
+sudo ufw allow 1700/tcp
+```
+
+### Security
+
+<Warning>
+When exposing the server to the internet, use a strong token and consider using a reverse proxy with HTTPS.
+</Warning>
+
+Recommended setup:
+
+1. Run server on localhost only
+2. Use nginx/caddy as reverse proxy with HTTPS
+3. Use strong authentication token
+4. Restrict access by IP if possible
+
+## Troubleshooting
+
+### Port Already in Use
+
+```
+Error: could not bind to port 1700: address already in use
+```
+
+Solution:
+
+```bash
+surge server --port 1701
+```
+
+Or kill the existing process:
+
+```bash
+surge server stop
+```
+
+### Already Running
+
+```
+Error: Surge server is already running.
+```
+
+Check status:
+
+```bash
+surge server status
+```
+
+Stop if needed:
+
+```bash
+surge server stop
+```
+
+## Related Commands
+
+- [surge](/cli/surge) - Run with TUI
+- [surge connect](/cli/connect) - Connect TUI to server
+- [surge add](/cli/add) - Add downloads to server
+- [surge token](/cli/token) - Get authentication token

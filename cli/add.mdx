@@ -1,0 +1,217 @@
+---
+title: add
+description: Add downloads to the running Surge instance
+---
+
+The `add` command queues one or more downloads to a running Surge instance. It requires an active Surge server or TUI to be running.
+
+## Usage
+
+```bash
+surge add [url]...
+```
+
+## Aliases
+
+- `get`
+
+```bash
+surge get https://example.com/file.zip
+```
+
+## Description
+
+Adds new downloads to the queue of a running Surge instance. The command:
+
+- Connects to the local or remote Surge server via HTTP API
+- Sends download requests with optional output directory
+- Supports batch file input for multiple URLs
+- Auto-detects the running server port from the runtime directory
+- Returns success count for queued downloads
+
+<Note>
+This command requires a running Surge instance. Start one with `surge` or `surge server` first.
+</Note>
+
+## Arguments
+
+<ParamField path="url" type="string" optional>
+  One or more URLs to download. Can include mirror URLs separated by commas.
+  
+  Examples:
+  ```bash
+  surge add https://example.com/file.zip
+  surge add https://example.com/file1.zip https://example.com/file2.tar.gz
+  ```
+</ParamField>
+
+## Flags
+
+<ParamField path="--batch" type="string" default="">
+  Path to a file containing URLs to download (one per line).
+  
+  Short form: `-b`
+  
+  Example:
+  ```bash
+  surge add --batch downloads.txt
+  ```
+</ParamField>
+
+<ParamField path="--output" type="string" default="">
+  Output directory for the downloads. If not specified, uses the server's configured default download directory.
+  
+  Short form: `-o`
+  
+  Example:
+  ```bash
+  surge add --output ~/Downloads https://example.com/file.zip
+  ```
+</ParamField>
+
+## Examples
+
+### Add Single Download
+
+```bash
+surge add https://releases.ubuntu.com/22.04/ubuntu-22.04-desktop-amd64.iso
+```
+
+Output:
+```
+Successfully added 1 downloads.
+```
+
+### Add Multiple Downloads
+
+```bash
+surge add https://example.com/file1.zip https://example.com/file2.tar.gz
+```
+
+Output:
+```
+Successfully added 2 downloads.
+```
+
+### Add from Batch File
+
+Create a file `urls.txt`:
+```
+https://example.com/file1.zip
+https://example.com/file2.tar.gz
+https://example.com/file3.iso
+```
+
+Then run:
+```bash
+surge add --batch urls.txt
+```
+
+Output:
+```
+Successfully added 3 downloads.
+```
+
+### Specify Output Directory
+
+```bash
+surge add --output /data/downloads https://example.com/file.zip
+```
+
+### Add with Mirrors
+
+Provide mirror URLs separated by commas:
+
+```bash
+surge add "https://mirror1.com/file.zip,https://mirror2.com/file.zip,https://mirror3.com/file.zip"
+```
+
+Surge will automatically try mirrors if the primary URL fails.
+
+### Using Alias
+
+```bash
+surge get https://example.com/file.zip
+```
+
+## Batch File Format
+
+Batch files should contain one URL per line:
+
+```
+https://example.com/file1.zip
+https://example.com/file2.tar.gz
+
+# Comments and empty lines are ignored
+https://example.com/file3.iso
+```
+
+Mirrors can be specified in batch files:
+
+```
+https://mirror1.com/file.zip,https://mirror2.com/file.zip
+https://example.com/file2.tar.gz
+```
+
+## Connection Behavior
+
+### Auto-Detection
+
+The command automatically detects a running local Surge instance by reading the port from the runtime directory (`~/.surge/port` or `~/.local/state/surge/port`).
+
+### Remote Servers
+
+To add downloads to a remote server, use the `--host` flag:
+
+```bash
+surge add --host 192.168.1.100:1700 https://example.com/file.zip
+```
+
+Or set the `SURGE_HOST` environment variable:
+
+```bash
+export SURGE_HOST=192.168.1.100:1700
+surge add https://example.com/file.zip
+```
+
+### Authentication
+
+For remote servers, you may need to provide a token:
+
+```bash
+surge add --host 192.168.1.100:1700 --token <token> https://example.com/file.zip
+```
+
+Or use the `SURGE_TOKEN` environment variable:
+
+```bash
+export SURGE_TOKEN=your-token-here
+surge add --host 192.168.1.100:1700 https://example.com/file.zip
+```
+
+<Tip>
+Use `surge token` to retrieve the authentication token from a running instance.
+</Tip>
+
+## Error Handling
+
+If no Surge instance is running:
+
+```
+Error: No running Surge server found.
+```
+
+If a URL fails to queue:
+
+```
+Error adding https://example.com/file.zip: connection refused
+Successfully added 2 downloads.
+```
+
+The command reports individual failures but continues processing remaining URLs.
+
+## Related Commands
+
+- [surge](/cli/surge) - Launch TUI with initial downloads
+- [surge server](/cli/server) - Start headless server
+- [surge ls](/cli/ls) - List queued downloads

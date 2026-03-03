@@ -1,0 +1,279 @@
+---
+title: Update URL Endpoint
+description: Update the URL of an existing download
+---
+
+The `/update-url` endpoint allows you to change the URL of an existing download. This is useful when the original URL becomes invalid or when you want to switch to a different mirror.
+
+## PUT /update-url
+
+Update the URL of a download.
+
+### Query Parameters
+
+<ParamField query="id" type="string" required>
+  The unique download ID whose URL you want to update.
+</ParamField>
+
+### Request Body
+
+<ParamField body="url" type="string" required>
+  The new URL to use for this download. The URL must point to the same file (same size and content).
+</ParamField>
+
+### Request
+
+```bash
+curl -X PUT "http://localhost:1700/update-url?id=550e8400-e29b-41d4-a716-446655440000" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://mirror.example.com/file.zip"}'
+```
+
+### Response
+
+Returns a JSON object confirming the URL update:
+
+<ResponseField name="status" type="string">
+  Confirmation that the URL was updated. Always returns `"updated"`.
+</ResponseField>
+
+<ResponseField name="id" type="string">
+  The ID of the download.
+</ResponseField>
+
+<ResponseField name="url" type="string">
+  The new URL that was set.
+</ResponseField>
+
+### Response Example
+
+```json
+{
+  "status": "updated",
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "url": "https://mirror.example.com/file.zip"
+}
+```
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X PUT "http://localhost:1700/update-url?id=550e8400-e29b-41d4-a716-446655440000" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://mirror.example.com/file.zip"}'
+```
+
+```javascript JavaScript
+const downloadId = '550e8400-e29b-41d4-a716-446655440000';
+const newUrl = 'https://mirror.example.com/file.zip';
+
+const response = await fetch(`http://localhost:1700/update-url?id=${downloadId}`, {
+  method: 'PUT',
+  headers: {
+    'Authorization': 'Bearer YOUR_TOKEN',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({ url: newUrl })
+});
+
+const data = await response.json();
+console.log(`URL updated for download ${data.id}`);
+```
+
+```python Python
+import requests
+
+download_id = '550e8400-e29b-41d4-a716-446655440000'
+new_url = 'https://mirror.example.com/file.zip'
+
+response = requests.put(
+    f'http://localhost:1700/update-url?id={download_id}',
+    headers={'Authorization': 'Bearer YOUR_TOKEN'},
+    json={'url': new_url}
+)
+
+data = response.json()
+print(f"URL updated for download {data['id']}")
+```
+
+</CodeGroup>
+
+## Use Cases
+
+### 1. Switch to Faster Mirror
+
+If you discover a faster mirror, you can switch to it mid-download:
+
+```javascript
+// Original download is slow
+const downloadId = 'abc-123';
+
+// Switch to a faster mirror
+await fetch(`http://localhost:1700/update-url?id=${downloadId}`, {
+  method: 'PUT',
+  headers: {
+    'Authorization': 'Bearer YOUR_TOKEN',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    url: 'https://faster-mirror.example.com/file.zip'
+  })
+});
+```
+
+### 2. Handle Expired URLs
+
+Some URLs expire after a certain time. Update the URL when this happens:
+
+```javascript
+// URL expired, get a new signed URL
+const newSignedUrl = await getNewSignedUrl();
+
+// Update the download
+await fetch(`http://localhost:1700/update-url?id=${downloadId}`, {
+  method: 'PUT',
+  headers: {
+    'Authorization': 'Bearer YOUR_TOKEN',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({ url: newSignedUrl })
+});
+```
+
+### 3. Recover from Failed Downloads
+
+If a download fails due to a broken link, update to a working URL:
+
+```javascript
+// Download failed
+const status = await getDownloadStatus(downloadId);
+
+if (status.status === 'error') {
+  // Find an alternative URL
+  const alternativeUrl = await findAlternativeUrl(status.filename);
+  
+  // Update the URL
+  await fetch(`http://localhost:1700/update-url?id=${downloadId}`, {
+    method: 'PUT',
+    headers: {
+      'Authorization': 'Bearer YOUR_TOKEN',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ url: alternativeUrl })
+  });
+  
+  // Resume the download
+  await fetch(`http://localhost:1700/resume?id=${downloadId}`, {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer YOUR_TOKEN' }
+  });
+}
+```
+
+## Important Considerations
+
+<Warning>
+The new URL must point to the same file with the same size and content. If the file is different, the download may become corrupted or fail.
+</Warning>
+
+<Note>
+Updating the URL does not automatically resume the download if it's paused. You must call the resume endpoint separately if needed.
+</Note>
+
+## Error Responses
+
+<Expandable title="400 Bad Request">
+  Returned when required parameters are missing or invalid:
+  
+  ```json
+  {
+    "error": "Missing id parameter"
+  }
+  ```
+  
+  or
+  
+  ```json
+  {
+    "error": "Missing url parameter in body"
+  }
+  ```
+  
+  or
+  
+  ```json
+  {
+    "error": "Invalid request body"
+  }
+  ```
+</Expandable>
+
+<Expandable title="405 Method Not Allowed">
+  Returned when using a method other than PUT:
+  
+  ```json
+  {
+    "error": "Method not allowed"
+  }
+  ```
+</Expandable>
+
+<Expandable title="500 Internal Server Error">
+  Returned if the update operation fails:
+  
+  ```json
+  {
+    "error": "Download not found"
+  }
+  ```
+  
+  Common causes:
+  - Download ID doesn't exist
+  - Download has already completed
+  - Internal state error
+</Expandable>
+
+## Workflow Example
+
+Complete workflow for updating a URL and resuming:
+
+```javascript
+const downloadId = '550e8400-e29b-41d4-a716-446655440000';
+
+// 1. Pause the download
+await fetch(`http://localhost:1700/pause?id=${downloadId}`, {
+  method: 'POST',
+  headers: { 'Authorization': 'Bearer YOUR_TOKEN' }
+});
+
+// 2. Update the URL
+await fetch(`http://localhost:1700/update-url?id=${downloadId}`, {
+  method: 'PUT',
+  headers: {
+    'Authorization': 'Bearer YOUR_TOKEN',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    url: 'https://new-mirror.example.com/file.zip'
+  })
+});
+
+// 3. Resume with the new URL
+await fetch(`http://localhost:1700/resume?id=${downloadId}`, {
+  method: 'POST',
+  headers: { 'Authorization': 'Bearer YOUR_TOKEN' }
+});
+
+console.log('Download resumed with new URL');
+```
+
+## Related Endpoints
+
+- [Download](/api/endpoints/download) - Start a new download with mirrors
+- [Pause](/api/endpoints/pause) - Pause before updating URL
+- [Resume](/api/endpoints/resume) - Resume after updating URL
+- [List](/api/endpoints/list) - View current download URLs

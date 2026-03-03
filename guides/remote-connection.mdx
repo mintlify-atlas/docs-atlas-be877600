@@ -1,0 +1,279 @@
+---
+title: Remote Connection
+description: Connect to remote Surge servers using host and token flags or environment variables for distributed download management
+---
+
+Surge supports connecting to remote servers, allowing you to manage downloads on a different machine from your terminal. This is perfect for controlling a home server, NAS, or cloud instance.
+
+## Connection Methods
+
+There are three ways to connect to a remote Surge server:
+
+<Tabs>
+  <Tab title="Connect Command">
+    Use the `surge connect` command for a streamlined connection:
+
+    ```bash
+    surge connect 192.168.1.10:1700 --token <your-token>
+    ```
+
+    This launches the TUI connected to the remote server.
+  </Tab>
+
+  <Tab title="Global Flags">
+    Use the `--host` and `--token` flags with any command:
+
+    ```bash
+    surge --host 192.168.1.10:1700 --token <your-token>
+    ```
+
+    This works with both TUI mode and CLI commands.
+  </Tab>
+
+  <Tab title="Environment Variables">
+    Set environment variables for persistent configuration:
+
+    ```bash
+    export SURGE_HOST=192.168.1.10:1700
+    export SURGE_TOKEN=<your-token>
+
+    surge
+    ```
+
+    Perfect for adding to your shell profile.
+  </Tab>
+</Tabs>
+
+## Local Server Auto-Detection
+
+When you run `surge connect` without arguments, it auto-detects the local server:
+
+```bash
+surge connect
+```
+
+This scans for a Surge server on localhost and connects automatically.
+
+<Info>
+  Local server detection scans ports starting from 1700 up to 100 ports ahead to find your running Surge instance.
+</Info>
+
+## Protocol Selection
+
+Surge automatically chooses the protocol based on the target:
+
+- **`http://`** for loopback (127.0.0.1) and private IP targets
+- **`https://`** for public IPs and hostnames
+
+### Override with Insecure HTTP
+
+Force HTTP for public addresses (useful for development):
+
+```bash
+surge connect example.com:1700 --insecure-http --token <token>
+```
+
+<Warning>
+  Using `--insecure-http` for public servers sends your token in plaintext. Only use this on trusted networks or for testing.
+</Warning>
+
+## Global Connection Flags
+
+These flags are available on all commands:
+
+| Flag | Description | Example |
+| ---- | ----------- | ------- |
+| `--host <host:port>` | Target server for TUI and CLI operations | `--host 192.168.1.10:1700` |
+| `--token <token>` | Bearer token for authentication | `--token abc123xyz` |
+| `--verbose, -v` | Enable verbose logging | `-v` |
+
+## Environment Variables
+
+Set these variables to avoid repeating flags:
+
+```bash
+export SURGE_HOST=192.168.1.10:1700
+export SURGE_TOKEN=your-secure-token-here
+```
+
+Now all Surge commands will connect to the remote server:
+
+<CodeGroup>
+  ```bash Launch TUI
+  surge
+  ```
+
+  ```bash List downloads
+  surge ls
+  ```
+
+  ```bash Add download
+  surge add https://example.com/file.zip
+  ```
+
+  ```bash Pause download
+  surge pause <id>
+  ```
+</CodeGroup>
+
+## Remote CLI Operations
+
+All CLI commands work with remote servers:
+
+<Steps>
+  <Step title="List downloads">
+    ```bash
+    surge --host 192.168.1.10:1700 --token <token> ls
+    ```
+  </Step>
+
+  <Step title="Add download">
+    ```bash
+    surge --host 192.168.1.10:1700 --token <token> add https://example.com/file.zip
+    ```
+  </Step>
+
+  <Step title="Pause download">
+    ```bash
+    surge --host 192.168.1.10:1700 --token <token> pause d4f8a2
+    ```
+  </Step>
+
+  <Step title="Resume download">
+    ```bash
+    surge --host 192.168.1.10:1700 --token <token> resume d4f8a2
+    ```
+  </Step>
+
+  <Step title="Delete download">
+    ```bash
+    surge --host 192.168.1.10:1700 --token <token> rm d4f8a2
+    ```
+  </Step>
+</Steps>
+
+## Connection Examples
+
+<Tabs>
+  <Tab title="Home Server">
+    Connect to a Surge server running on your local network:
+
+    ```bash
+    # Get the token from the remote server first
+    ssh user@192.168.1.10 "surge token"
+
+    # Connect from your laptop
+    surge connect 192.168.1.10:1700 --token <token>
+    ```
+  </Tab>
+
+  <Tab title="Cloud Instance">
+    Connect to a Surge server on a cloud provider:
+
+    ```bash
+    # Uses HTTPS automatically for public hostname
+    surge connect surge.example.com:1700 --token <token>
+    ```
+  </Tab>
+
+  <Tab title="Docker Container">
+    Connect to a Surge Docker container:
+
+    ```bash
+    # Get token from container
+    docker compose exec surge surge token
+
+    # Connect to container
+    surge connect localhost:1700 --token <token>
+    ```
+  </Tab>
+</Tabs>
+
+## Shell Profile Configuration
+
+Add remote connection to your shell profile for permanent access:
+
+<CodeGroup>
+  ```bash Bash (~/.bashrc)
+  export SURGE_HOST=192.168.1.10:1700
+  export SURGE_TOKEN=your-token-here
+
+  # Optional: Create alias
+  alias surge-remote='surge --host $SURGE_HOST --token $SURGE_TOKEN'
+  ```
+
+  ```zsh Zsh (~/.zshrc)
+  export SURGE_HOST=192.168.1.10:1700
+  export SURGE_TOKEN=your-token-here
+
+  # Optional: Create alias
+  alias surge-remote='surge --host $SURGE_HOST --token $SURGE_TOKEN'
+  ```
+
+  ```fish Fish (~/.config/fish/config.fish)
+  set -x SURGE_HOST 192.168.1.10:1700
+  set -x SURGE_TOKEN your-token-here
+
+  # Optional: Create alias
+  alias surge-remote='surge --host $SURGE_HOST --token $SURGE_TOKEN'
+  ```
+</CodeGroup>
+
+## Troubleshooting
+
+<Steps>
+  <Step title="Check server is running">
+    On the remote machine:
+
+    ```bash
+    surge server status
+    ```
+  </Step>
+
+  <Step title="Verify network access">
+    Test connectivity to the server:
+
+    ```bash
+    curl http://192.168.1.10:1700/health
+    ```
+
+    Should return `{"status":"ok"}`.
+  </Step>
+
+  <Step title="Verify token">
+    Get the current token from the remote server:
+
+    ```bash
+    ssh user@192.168.1.10 "surge token"
+    ```
+  </Step>
+
+  <Step title="Check firewall rules">
+    Ensure port 1700 is open:
+
+    ```bash
+    # Linux (ufw)
+    sudo ufw allow 1700/tcp
+
+    # Linux (firewalld)
+    sudo firewall-cmd --add-port=1700/tcp --permanent
+    sudo firewall-cmd --reload
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+  Use `surge --verbose` to see detailed connection logs and debug issues.
+</Tip>
+
+## Security Best Practices
+
+1. **Use HTTPS**: Always use HTTPS for public servers
+2. **Secure Tokens**: Treat tokens like passwords - never commit them to version control
+3. **Firewall Rules**: Restrict access to port 1700 to trusted IPs only
+4. **VPN Access**: For remote servers, consider using a VPN instead of exposing the port publicly
+5. **Rotate Tokens**: Periodically restart the server with a new token
+
+<Warning>
+  Never expose your Surge server to the public internet without proper authentication and HTTPS. Use a reverse proxy like nginx or Caddy for production deployments.
+</Warning>

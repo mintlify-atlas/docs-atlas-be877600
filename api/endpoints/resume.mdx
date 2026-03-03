@@ -1,0 +1,220 @@
+---
+title: Resume Endpoint
+description: Resume a paused download from where it left off
+---
+
+The `/resume` endpoint allows you to resume a paused download. The download will continue from the exact position where it was paused.
+
+## POST /resume
+
+Resume a previously paused download.
+
+### Query Parameters
+
+<ParamField query="id" type="string" required>
+  The unique download ID to resume. This is the ID returned when the download was created.
+</ParamField>
+
+### Request
+
+```bash
+curl -X POST "http://localhost:1700/resume?id=550e8400-e29b-41d4-a716-446655440000" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+### Response
+
+Returns a JSON object confirming the resume operation:
+
+<ResponseField name="status" type="string">
+  Confirmation that the download was resumed. Always returns `"resumed"`.
+</ResponseField>
+
+<ResponseField name="id" type="string">
+  The ID of the resumed download.
+</ResponseField>
+
+### Response Example
+
+```json
+{
+  "status": "resumed",
+  "id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "http://localhost:1700/resume?id=550e8400-e29b-41d4-a716-446655440000" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+```javascript JavaScript
+const downloadId = '550e8400-e29b-41d4-a716-446655440000';
+
+const response = await fetch(`http://localhost:1700/resume?id=${downloadId}`, {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_TOKEN'
+  }
+});
+
+const data = await response.json();
+console.log(`Download ${data.id} ${data.status}`);
+```
+
+```python Python
+import requests
+
+download_id = '550e8400-e29b-41d4-a716-446655440000'
+
+response = requests.post(
+    f'http://localhost:1700/resume?id={download_id}',
+    headers={'Authorization': 'Bearer YOUR_TOKEN'}
+)
+
+data = response.json()
+print(f"Download {data['id']} {data['status']}")
+```
+
+</CodeGroup>
+
+## Behavior
+
+When you resume a download:
+
+1. **State restored**: The saved download state is loaded from disk
+2. **Connections re-established**: New connections are opened to the server(s)
+3. **Progress continues**: Download continues from the exact byte where it was paused
+4. **Integrity verified**: Surge verifies the partial file hasn't been corrupted
+
+<Note>
+Surge automatically resumes paused downloads when the server starts, unless you use the `--no-resume` flag.
+</Note>
+
+## Resuming Multiple Downloads
+
+To resume multiple downloads, you need to make separate API calls for each download ID:
+
+```javascript
+const downloadIds = [
+  '550e8400-e29b-41d4-a716-446655440000',
+  '660e8400-e29b-41d4-a716-446655440001',
+  '770e8400-e29b-41d4-a716-446655440002'
+];
+
+for (const id of downloadIds) {
+  await fetch(`http://localhost:1700/resume?id=${id}`, {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer YOUR_TOKEN' }
+  });
+}
+```
+
+## Auto-Resume on Server Start
+
+By default, Surge automatically resumes all paused downloads when the server starts:
+
+```bash
+# Default behavior - auto-resumes paused downloads
+surge server
+```
+
+To disable auto-resume:
+
+```bash
+# Paused downloads remain paused until manually resumed
+surge server --no-resume
+```
+
+## Error Responses
+
+<Expandable title="400 Bad Request">
+  Returned when the `id` parameter is missing:
+  
+  ```json
+  {
+    "error": "Missing id parameter"
+  }
+  ```
+</Expandable>
+
+<Expandable title="405 Method Not Allowed">
+  Returned when using a method other than POST:
+  
+  ```json
+  {
+    "error": "Method not allowed"
+  }
+  ```
+</Expandable>
+
+<Expandable title="500 Internal Server Error">
+  Returned if the resume operation fails:
+  
+  ```json
+  {
+    "error": "Download not found"
+  }
+  ```
+  
+  Common causes:
+  - Download ID doesn't exist
+  - Download is already active
+  - Download has already completed
+  - Download state file is corrupted or missing
+</Expandable>
+
+## Resume Workflow Example
+
+Here's a complete workflow showing pause and resume:
+
+```javascript
+// Start a download
+const startResponse = await fetch('http://localhost:1700/download', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_TOKEN',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({ url: 'https://example.com/large-file.zip' })
+});
+
+const { id } = await startResponse.json();
+
+// Wait for some progress...
+await new Promise(resolve => setTimeout(resolve, 5000));
+
+// Pause the download
+await fetch(`http://localhost:1700/pause?id=${id}`, {
+  method: 'POST',
+  headers: { 'Authorization': 'Bearer YOUR_TOKEN' }
+});
+
+console.log('Download paused');
+
+// Later... resume the download
+await fetch(`http://localhost:1700/resume?id=${id}`, {
+  method: 'POST',
+  headers: { 'Authorization': 'Bearer YOUR_TOKEN' }
+});
+
+console.log('Download resumed');
+```
+
+## Use Cases
+
+- **Network Recovery**: Resume downloads after network interruption
+- **Scheduled Downloads**: Resume downloads during off-peak hours
+- **Resource Management**: Resume when system resources become available
+- **User Control**: Let users manually resume downloads through a UI
+- **Batch Operations**: Resume multiple downloads programmatically
+
+## Related Endpoints
+
+- [Pause](/api/endpoints/pause) - Pause an active download
+- [List](/api/endpoints/list) - Check which downloads are paused
+- [Events](/api/endpoints/events) - Receive real-time resume notifications

@@ -1,0 +1,467 @@
+---
+title: Events Endpoint
+description: Real-time download events using Server-Sent Events (SSE)
+---
+
+The `/events` endpoint provides a real-time stream of download events using Server-Sent Events (SSE). This allows you to monitor all download activity without polling.
+
+## GET /events
+
+Subscribe to a stream of real-time download events.
+
+### Request
+
+```bash
+curl http://localhost:1700/events \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Accept: text/event-stream"
+```
+
+### Response
+
+The response is a continuous stream of Server-Sent Events. Each event has a type and JSON data payload.
+
+**Headers:**
+- `Content-Type: text/event-stream`
+- `Cache-Control: no-cache`
+- `Connection: keep-alive`
+
+**Event Format:**
+```
+event: <event-type>
+data: <json-payload>
+
+```
+
+## Event Types
+
+The API emits the following event types:
+
+### progress
+
+Emitted periodically during active downloads with progress updates.
+
+<ResponseField name="DownloadID" type="string">
+  Unique identifier for the download.
+</ResponseField>
+
+<ResponseField name="Downloaded" type="integer">
+  Number of bytes downloaded so far.
+</ResponseField>
+
+<ResponseField name="Total" type="integer">
+  Total file size in bytes.
+</ResponseField>
+
+<ResponseField name="Speed" type="number">
+  Current download speed in bytes per second.
+</ResponseField>
+
+<ResponseField name="Elapsed" type="integer">
+  Time elapsed in nanoseconds since download started.
+</ResponseField>
+
+<ResponseField name="ActiveConnections" type="integer">
+  Number of active connections for this download.
+</ResponseField>
+
+<ResponseField name="ChunkBitmap" type="array">
+  Binary bitmap representing download chunk status.
+</ResponseField>
+
+<ResponseField name="BitmapWidth" type="integer">
+  Width of the chunk bitmap for rendering.
+</ResponseField>
+
+<ResponseField name="ActualChunkSize" type="integer">
+  Size of each chunk in bytes.
+</ResponseField>
+
+<ResponseField name="ChunkProgress" type="array">
+  Array of bytes downloaded for each chunk.
+</ResponseField>
+
+**Example:**
+```
+event: progress
+data: {"DownloadID":"abc-123","Downloaded":52428800,"Total":104857600,"Speed":10485760,"Elapsed":5000000000,"ActiveConnections":8,"ChunkBitmap":[],"BitmapWidth":0,"ActualChunkSize":0,"ChunkProgress":[]}
+
+```
+
+### started
+
+Emitted when a download begins (after metadata is fetched).
+
+<ResponseField name="DownloadID" type="string">
+  Unique identifier for the download.
+</ResponseField>
+
+<ResponseField name="URL" type="string">
+  The URL being downloaded.
+</ResponseField>
+
+<ResponseField name="Filename" type="string">
+  Name of the file being downloaded.
+</ResponseField>
+
+<ResponseField name="Total" type="integer">
+  Total file size in bytes.
+</ResponseField>
+
+<ResponseField name="DestPath" type="string">
+  Full path to the destination file.
+</ResponseField>
+
+**Example:**
+```
+event: started
+data: {"DownloadID":"abc-123","URL":"https://example.com/file.zip","Filename":"file.zip","Total":104857600,"DestPath":"/home/user/downloads/file.zip"}
+
+```
+
+### complete
+
+Emitted when a download finishes successfully.
+
+<ResponseField name="DownloadID" type="string">
+  Unique identifier for the download.
+</ResponseField>
+
+<ResponseField name="Filename" type="string">
+  Name of the completed file.
+</ResponseField>
+
+<ResponseField name="Elapsed" type="integer">
+  Total time taken in nanoseconds.
+</ResponseField>
+
+<ResponseField name="Total" type="integer">
+  Total bytes downloaded.
+</ResponseField>
+
+<ResponseField name="AvgSpeed" type="number">
+  Average download speed in bytes per second.
+</ResponseField>
+
+**Example:**
+```
+event: complete
+data: {"DownloadID":"abc-123","Filename":"file.zip","Elapsed":10000000000,"Total":104857600,"AvgSpeed":10485760}
+
+```
+
+### error
+
+Emitted when a download encounters an error.
+
+<ResponseField name="DownloadID" type="string">
+  Unique identifier for the download.
+</ResponseField>
+
+<ResponseField name="Filename" type="string">
+  Name of the file that failed.
+</ResponseField>
+
+<ResponseField name="Err" type="string">
+  Error message describing what went wrong.
+</ResponseField>
+
+**Example:**
+```
+event: error
+data: {"DownloadID":"abc-123","Filename":"file.zip","Err":"connection timeout"}
+
+```
+
+### paused
+
+Emitted when a download is paused.
+
+<ResponseField name="DownloadID" type="string">
+  Unique identifier for the download.
+</ResponseField>
+
+<ResponseField name="Filename" type="string">
+  Name of the paused file.
+</ResponseField>
+
+<ResponseField name="Downloaded" type="integer">
+  Number of bytes downloaded before pausing.
+</ResponseField>
+
+**Example:**
+```
+event: paused
+data: {"DownloadID":"abc-123","Filename":"file.zip","Downloaded":52428800}
+
+```
+
+### resumed
+
+Emitted when a paused download is resumed.
+
+<ResponseField name="DownloadID" type="string">
+  Unique identifier for the download.
+</ResponseField>
+
+<ResponseField name="Filename" type="string">
+  Name of the resumed file.
+</ResponseField>
+
+**Example:**
+```
+event: resumed
+data: {"DownloadID":"abc-123","Filename":"file.zip"}
+
+```
+
+### queued
+
+Emitted when a download is added to the queue.
+
+<ResponseField name="DownloadID" type="string">
+  Unique identifier for the download.
+</ResponseField>
+
+<ResponseField name="Filename" type="string">
+  Name of the queued file.
+</ResponseField>
+
+<ResponseField name="URL" type="string">
+  The URL to download.
+</ResponseField>
+
+<ResponseField name="DestPath" type="string">
+  Destination path for the file.
+</ResponseField>
+
+**Example:**
+```
+event: queued
+data: {"DownloadID":"abc-123","Filename":"file.zip","URL":"https://example.com/file.zip","DestPath":"/home/user/downloads/file.zip"}
+
+```
+
+### removed
+
+Emitted when a download is deleted.
+
+<ResponseField name="DownloadID" type="string">
+  Unique identifier for the download.
+</ResponseField>
+
+<ResponseField name="Filename" type="string">
+  Name of the removed file.
+</ResponseField>
+
+**Example:**
+```
+event: removed
+data: {"DownloadID":"abc-123","Filename":"file.zip"}
+
+```
+
+### request
+
+Emitted when a download is requested (e.g., from a browser extension) and may need user confirmation.
+
+<ResponseField name="ID" type="string">
+  Request identifier.
+</ResponseField>
+
+<ResponseField name="URL" type="string">
+  The requested URL.
+</ResponseField>
+
+<ResponseField name="Filename" type="string">
+  Suggested filename.
+</ResponseField>
+
+<ResponseField name="Path" type="string">
+  Suggested destination path.
+</ResponseField>
+
+<ResponseField name="Mirrors" type="array">
+  Array of mirror URLs.
+</ResponseField>
+
+<ResponseField name="Headers" type="object">
+  Custom HTTP headers for the request.
+</ResponseField>
+
+**Example:**
+```
+event: request
+data: {"ID":"req-123","URL":"https://example.com/file.zip","Filename":"file.zip","Path":"/downloads","Mirrors":[],"Headers":{}}
+
+```
+
+### system
+
+Emitted for system-level log messages.
+
+<ResponseField name="Message" type="string">
+  System log message.
+</ResponseField>
+
+**Example:**
+```
+event: system
+data: {"Message":"Server started on port 1700"}
+
+```
+
+## Examples
+
+<CodeGroup>
+
+```javascript JavaScript (EventSource)
+const eventSource = new EventSource('http://localhost:1700/events', {
+  headers: {
+    'Authorization': 'Bearer YOUR_TOKEN'
+  }
+});
+
+eventSource.addEventListener('progress', (e) => {
+  const data = JSON.parse(e.data);
+  console.log(`Progress: ${data.Downloaded}/${data.Total} bytes`);
+});
+
+eventSource.addEventListener('complete', (e) => {
+  const data = JSON.parse(e.data);
+  console.log(`Download complete: ${data.Filename}`);
+});
+
+eventSource.addEventListener('error', (e) => {
+  const data = JSON.parse(e.data);
+  console.error(`Download error: ${data.Err}`);
+});
+
+eventSource.onerror = (error) => {
+  console.error('SSE connection error:', error);
+};
+```
+
+```python Python
+import requests
+import json
+
+response = requests.get(
+    'http://localhost:1700/events',
+    headers={'Authorization': 'Bearer YOUR_TOKEN'},
+    stream=True
+)
+
+for line in response.iter_lines():
+    if line:
+        line = line.decode('utf-8')
+        
+        if line.startswith('event:'):
+            event_type = line.split(':', 1)[1].strip()
+        elif line.startswith('data:'):
+            data = json.loads(line.split(':', 1)[1])
+            print(f"{event_type}: {data}")
+```
+
+```bash cURL
+curl -N http://localhost:1700/events \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Accept: text/event-stream"
+```
+
+</CodeGroup>
+
+## Building a Real-time Dashboard
+
+Here's an example of building a live download dashboard:
+
+```javascript
+const downloads = new Map();
+
+const eventSource = new EventSource('http://localhost:1700/events', {
+  headers: { 'Authorization': 'Bearer YOUR_TOKEN' }
+});
+
+// Track all downloads
+eventSource.addEventListener('queued', (e) => {
+  const data = JSON.parse(e.data);
+  downloads.set(data.DownloadID, {
+    id: data.DownloadID,
+    filename: data.Filename,
+    status: 'queued',
+    progress: 0
+  });
+  updateUI();
+});
+
+eventSource.addEventListener('started', (e) => {
+  const data = JSON.parse(e.data);
+  const download = downloads.get(data.DownloadID);
+  if (download) {
+    download.status = 'downloading';
+    download.total = data.Total;
+    updateUI();
+  }
+});
+
+eventSource.addEventListener('progress', (e) => {
+  const data = JSON.parse(e.data);
+  const download = downloads.get(data.DownloadID);
+  if (download) {
+    download.downloaded = data.Downloaded;
+    download.speed = data.Speed;
+    download.progress = (data.Downloaded / data.Total) * 100;
+    updateUI();
+  }
+});
+
+eventSource.addEventListener('complete', (e) => {
+  const data = JSON.parse(e.data);
+  const download = downloads.get(data.DownloadID);
+  if (download) {
+    download.status = 'complete';
+    download.progress = 100;
+    updateUI();
+  }
+});
+
+eventSource.addEventListener('paused', (e) => {
+  const data = JSON.parse(e.data);
+  const download = downloads.get(data.DownloadID);
+  if (download) {
+    download.status = 'paused';
+    updateUI();
+  }
+});
+
+function updateUI() {
+  // Update your UI with the downloads Map
+  console.log('Active downloads:', downloads.size);
+}
+```
+
+## Connection Management
+
+<Note>
+SSE connections remain open indefinitely. The connection will close if:
+- The client disconnects
+- The server shuts down
+- A network error occurs
+
+Most SSE clients automatically reconnect when the connection drops.
+</Note>
+
+## Use Cases
+
+- **Real-time Dashboards**: Build web UIs showing live download progress
+- **Monitoring**: Track all download activity in real-time
+- **Notifications**: Alert users when downloads complete or fail
+- **Analytics**: Collect download metrics and statistics
+- **Integration**: Trigger actions based on download events
+
+## Related Endpoints
+
+- [Download](/api/endpoints/download) - Start downloads that emit events
+- [List](/api/endpoints/list) - Get current snapshot of all downloads
+- [Pause](/api/endpoints/pause) - Pause downloads (emits paused event)
+- [Resume](/api/endpoints/resume) - Resume downloads (emits resumed event)

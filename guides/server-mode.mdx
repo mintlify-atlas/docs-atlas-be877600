@@ -1,0 +1,267 @@
+---
+title: Server Mode
+description: Run Surge as a headless background server for automation, remote access, and daemon-based download management
+---
+
+Surge's server mode runs a headless daemon perfect for servers, Raspberry Pis, or background processes. The server provides an HTTP API for managing downloads remotely.
+
+## Starting the Server
+
+<Steps>
+  <Step title="Launch the server">
+    Start Surge in headless server mode:
+
+    ```bash
+    surge server
+    ```
+
+    This starts the background daemon with the HTTP API bound to `0.0.0.0:1700`.
+  </Step>
+
+  <Step title="Queue downloads on startup">
+    Start the server with initial downloads:
+
+    ```bash
+    surge server https://url.com/file.zip
+    ```
+  </Step>
+
+  <Step title="Use custom API token">
+    Set an explicit authentication token:
+
+    ```bash
+    surge server --token your-secure-token
+    ```
+  </Step>
+</Steps>
+
+## Server Configuration
+
+The server accepts several configuration flags:
+
+<CodeGroup>
+  ```bash Custom port
+  surge server --port 8080
+  ```
+
+  ```bash Batch downloads
+  surge server --batch urls.txt
+  ```
+
+  ```bash Custom output directory
+  surge server --output /data/downloads
+  ```
+
+  ```bash Exit when complete
+  surge server --exit-when-done https://example.com/file.zip
+  ```
+
+  ```bash Disable resume
+  surge server --no-resume
+  ```
+</CodeGroup>
+
+<Info>
+  The `surge` and `surge server` commands both bind the HTTP API to `0.0.0.0` (all interfaces) by default. This means the server is accessible via `localhost` (127.0.0.1) as well as your local network IP.
+</Info>
+
+## API Authentication
+
+The Surge server API is token-protected for security.
+
+### Getting Your Token
+
+Retrieve the current API authentication token:
+
+```bash
+surge token
+```
+
+This displays the token you need for API requests and remote connections.
+
+### Using Custom Tokens
+
+Set a custom token when starting the server:
+
+```bash
+surge server --token my-custom-token-here
+```
+
+<Warning>
+  Keep your API token secure. Anyone with the token can control your downloads and access the Surge API.
+</Warning>
+
+## Exit When Done
+
+The `--exit-when-done` flag is perfect for automation and scripting:
+
+<Tabs>
+  <Tab title="Single Download">
+    Download a file and exit when complete:
+
+    ```bash
+    surge server --exit-when-done https://example.com/file.zip
+    ```
+
+    The server will automatically shut down after the download finishes.
+  </Tab>
+
+  <Tab title="Batch Downloads">
+    Process a batch file and exit:
+
+    ```bash
+    surge server --exit-when-done --batch urls.txt
+    ```
+
+    Perfect for automated download scripts.
+  </Tab>
+
+  <Tab title="CI/CD Integration">
+    Use in continuous integration pipelines:
+
+    ```bash
+    #!/bin/bash
+    surge server --exit-when-done --output ./artifacts https://cdn.example.com/build.tar.gz
+    echo "Download complete, proceeding with build..."
+    ```
+  </Tab>
+</Tabs>
+
+## Managing the Server
+
+### Server Subcommands
+
+Surge provides legacy compatibility commands for managing the server:
+
+<Steps>
+  <Step title="Start server">
+    ```bash
+    surge server start
+    ```
+
+    Equivalent to `surge server`.
+  </Step>
+
+  <Step title="Stop server">
+    ```bash
+    surge server stop
+    ```
+
+    Stops a running server process by PID file.
+  </Step>
+
+  <Step title="Check status">
+    ```bash
+    surge server status
+    ```
+
+    Prints running/not-running status from PID/port state.
+  </Step>
+</Steps>
+
+### Checking Downloads
+
+List all downloads via CLI:
+
+```bash
+surge ls
+```
+
+Watch downloads in real-time:
+
+```bash
+surge ls --watch
+```
+
+Get JSON output for scripting:
+
+```bash
+surge ls --json
+```
+
+## Network Binding
+
+By default, Surge binds to all network interfaces:
+
+- **Localhost Access**: `http://127.0.0.1:1700`
+- **Local Network**: `http://<your-ip>:1700`
+- **Remote Access**: Configure firewall rules to allow external access
+
+<Note>
+  Use the `--port` flag to change the default port (1700) if it conflicts with other services.
+</Note>
+
+## Automation Examples
+
+<CodeGroup>
+  ```bash Systemd Service
+  # /etc/systemd/system/surge.service
+  [Unit]
+  Description=Surge Download Manager
+  After=network.target
+
+  [Service]
+  Type=simple
+  User=surge
+  ExecStart=/usr/local/bin/surge server
+  Restart=on-failure
+
+  [Install]
+  WantedBy=multi-user.target
+  ```
+
+  ```bash Cron Job
+  # Download file every day at 2 AM
+  0 2 * * * /usr/local/bin/surge server --exit-when-done https://example.com/daily-backup.zip
+  ```
+
+  ```bash Shell Script
+  #!/bin/bash
+  # Automated download script
+  export SURGE_TOKEN=$(surge token)
+
+  surge server --exit-when-done --batch downloads.txt
+
+  if [ $? -eq 0 ]; then
+    echo "All downloads completed successfully"
+  else
+    echo "Download failed"
+    exit 1
+  fi
+  ```
+</CodeGroup>
+
+## API Endpoints
+
+The server exposes an HTTP API on port 1700:
+
+| Endpoint | Method | Description |
+| -------- | ------ | ----------- |
+| `/health` | GET | Health check (returns `{"status": "ok"}`) |
+| `/list` | GET | List all downloads |
+| `/download` | POST | Queue a new download |
+| `/pause?id=<id>` | POST | Pause a download |
+| `/resume?id=<id>` | POST | Resume a download |
+| `/delete?id=<id>` | DELETE | Delete a download |
+
+<Tip>
+  All API requests (except `/health`) require the `Authorization: Bearer <token>` header.
+</Tip>
+
+## Server Logs
+
+Surge maintains timestamped log files for debugging and monitoring:
+
+- **Linux**: `~/.local/state/surge/logs/`
+- **macOS**: `~/Library/Application Support/surge/logs/`
+- **Windows**: `%APPDATA%\surge\logs\`
+
+By default, Surge keeps the 5 most recent log files. You can change this in settings:
+
+```bash
+# In TUI, go to Settings → General → Log Retention Count
+```
+
+<Info>
+  The server mode is designed to run 24/7. The daemon architecture ensures efficient resource usage even with many downloads.
+</Info>

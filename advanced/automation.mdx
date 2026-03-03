@@ -1,0 +1,358 @@
+---
+title: Automation
+description: Using Surge in automated workflows, scripts, and batch processing
+---
+
+Surge is designed to integrate seamlessly into automated workflows, supporting batch processing, exit-on-completion, and machine-readable JSON output.
+
+## Exit When Done
+
+The `--exit-when-done` flag makes Surge automatically exit when all downloads complete, perfect for scripts and automation.
+
+<CodeGroup>
+```bash Single Download
+# Download a file and exit when complete
+surge server https://example.com/file.zip --exit-when-done
+```
+
+```bash Batch File
+# Process all downloads from a file and exit
+surge server --batch urls.txt --exit-when-done
+```
+
+```bash Combined
+# Queue multiple sources and exit when done
+surge server https://example.com/file1.zip --batch urls.txt --exit-when-done
+```
+</CodeGroup>
+
+<Info>
+The `--exit-when-done` flag works with both `surge` (TUI mode) and `surge server` (headless mode).
+</Info>
+
+## Batch File Processing
+
+Surge can process multiple URLs from a file using the `--batch` (or `-b`) flag.
+
+### Batch File Format
+
+Create a text file with one URL per line:
+
+```txt urls.txt
+https://example.com/file1.zip
+https://example.com/file2.tar.gz
+https://example.com/archive.iso
+
+# Comments are supported
+https://example.com/document.pdf
+
+# Inline comments work too
+https://example.com/video.mp4  # Downloaded last
+```
+
+<Note>
+Batch files support:
+- One URL per line
+- Multiple URLs per line (whitespace-separated)
+- Comments using `#`
+- Blank lines (ignored)
+- Inline comments
+</Note>
+
+### Using Batch Files
+
+<CodeGroup>
+```bash Server Mode
+# Start server and process batch file
+surge server --batch urls.txt --exit-when-done
+```
+
+```bash TUI Mode
+# Start TUI with queued downloads
+surge --batch urls.txt
+```
+
+```bash Remote Queue
+# Add downloads to running server
+surge add --batch urls.txt
+```
+
+```bash With Output Directory
+# Specify custom output location
+surge server --batch urls.txt --output /downloads --exit-when-done
+```
+</CodeGroup>
+
+## JSON Output for Parsing
+
+The `ls` command supports `--json` flag for machine-readable output, perfect for scripts and automation.
+
+### List All Downloads
+
+```bash
+surge ls --json
+```
+
+<Accordion title="Example JSON Output">
+```json
+[
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "filename": "ubuntu-22.04.iso",
+    "status": "downloading",
+    "progress": 45.2,
+    "total_size": 4294967296,
+    "downloaded": 1941160550,
+    "speed": 12.5
+  },
+  {
+    "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+    "filename": "archive.zip",
+    "status": "completed",
+    "progress": 100.0,
+    "total_size": 1073741824,
+    "downloaded": 1073741824,
+    "speed": 0
+  },
+  {
+    "id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+    "filename": "document.pdf",
+    "status": "paused",
+    "progress": 23.8,
+    "total_size": 52428800,
+    "downloaded": 12483763,
+    "speed": 0
+  }
+]
+```
+</Accordion>
+
+### Get Specific Download Details
+
+```bash
+# Full ID or prefix (minimum 8 characters)
+surge ls a1b2c3d4 --json
+```
+
+<Accordion title="Example Single Download JSON">
+```json
+{
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "url": "https://releases.ubuntu.com/22.04/ubuntu-22.04-desktop-amd64.iso",
+  "filename": "ubuntu-22.04-desktop-amd64.iso",
+  "status": "downloading",
+  "progress": 45.2,
+  "total_size": 4294967296,
+  "downloaded": 1941160550,
+  "speed": 12.5
+}
+```
+</Accordion>
+
+## Scripting Examples
+
+### Monitor Download Progress
+
+<CodeGroup>
+```bash Bash Script
+#!/bin/bash
+# Monitor download completion
+
+while true; do
+  status=$(surge ls --json | jq -r '.[0].status')
+  progress=$(surge ls --json | jq -r '.[0].progress')
+  
+  echo "Status: $status, Progress: $progress%"
+  
+  if [ "$status" = "completed" ]; then
+    echo "Download finished!"
+    break
+  fi
+  
+  sleep 5
+done
+```
+
+```python Python Script
+import subprocess
+import json
+import time
+
+def get_downloads():
+    result = subprocess.run(
+        ['surge', 'ls', '--json'],
+        capture_output=True,
+        text=True
+    )
+    return json.loads(result.stdout)
+
+while True:
+    downloads = get_downloads()
+    active = [d for d in downloads if d['status'] == 'downloading']
+    
+    if not active:
+        print("All downloads complete!")
+        break
+    
+    for download in active:
+        print(f"{download['filename']}: {download['progress']:.1f}%")
+    
+    time.sleep(5)
+```
+</CodeGroup>
+
+### Automated Download Workflow
+
+```bash
+#!/bin/bash
+# Complete automated workflow
+
+set -e  # Exit on error
+
+# 1. Start server with batch downloads
+echo "Starting Surge server..."
+surge server --batch urls.txt --output /downloads --exit-when-done &
+SURGE_PID=$!
+
+# 2. Wait for server to start
+sleep 2
+
+# 3. Monitor progress
+while kill -0 $SURGE_PID 2>/dev/null; do
+  downloads=$(surge ls --json)
+  active=$(echo "$downloads" | jq '[.[] | select(.status == "downloading")] | length')
+  echo "Active downloads: $active"
+  sleep 10
+done
+
+echo "All downloads completed!"
+
+# 4. Post-process downloaded files
+for file in /downloads/*; do
+  echo "Processing: $file"
+  # Add your post-processing here
+done
+```
+
+<Warning>
+When using automation, always handle cleanup properly:
+- Use `--exit-when-done` for automatic termination
+- Trap signals to ensure graceful shutdown
+- Monitor process status before assuming completion
+</Warning>
+
+## Remote Automation
+
+Automate downloads on remote servers using the `--host` and `--token` flags.
+
+<Steps>
+  <Step title="Get the server token">
+    ```bash
+    # On the server
+    surge token
+    ```
+  </Step>
+  
+  <Step title="Queue downloads remotely">
+    ```bash
+    # From your local machine
+    export SURGE_HOST="192.168.1.10:1700"
+    export SURGE_TOKEN="your-token-here"
+    
+    surge add --batch urls.txt
+    ```
+  </Step>
+  
+  <Step title="Monitor remotely">
+    ```bash
+    # Check status with JSON output
+    surge ls --json
+    
+    # Watch progress in real-time
+    surge ls --watch
+    ```
+  </Step>
+</Steps>
+
+### Remote Script Example
+
+```bash
+#!/bin/bash
+# Remote download automation
+
+SERVER="192.168.1.10:1700"
+TOKEN="your-token-here"
+
+export SURGE_HOST="$SERVER"
+export SURGE_TOKEN="$TOKEN"
+
+# Add downloads
+echo "Queueing downloads..."
+surge add --batch remote-urls.txt
+
+# Monitor until complete
+while true; do
+  downloading=$(surge ls --json | jq '[.[] | select(.status == "downloading")] | length')
+  
+  if [ "$downloading" -eq 0 ]; then
+    echo "All downloads complete!"
+    break
+  fi
+  
+  echo "Active downloads: $downloading"
+  sleep 30
+done
+```
+
+## Environment Variables
+
+Surge supports environment variables for automation:
+
+| Variable | Description | Example |
+|----------|-------------|----------|
+| `SURGE_HOST` | Default server host | `192.168.1.10:1700` |
+| `SURGE_TOKEN` | API authentication token | `abc123...` |
+
+<Tip>
+Use environment variables instead of command-line flags for cleaner scripts and better security (tokens won't appear in process lists).
+</Tip>
+
+## Continuous Integration
+
+Example GitHub Actions workflow:
+
+```yaml .github/workflows/download.yml
+name: Download Files
+
+on:
+  workflow_dispatch:
+    inputs:
+      urls:
+        description: 'URLs to download (comma-separated)'
+        required: true
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Surge
+        run: |
+          wget https://github.com/surge-downloader/surge/releases/latest/download/surge_linux_amd64
+          chmod +x surge_linux_amd64
+          sudo mv surge_linux_amd64 /usr/local/bin/surge
+      
+      - name: Download Files
+        run: |
+          echo "${{ github.event.inputs.urls }}" | tr ',' '\n' > urls.txt
+          surge server --batch urls.txt --exit-when-done
+      
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: downloads
+          path: ~/Downloads/
+```
+
+<Info>
+The server mode automatically uses `~/Downloads` as the default output directory if not specified.
+</Info>
