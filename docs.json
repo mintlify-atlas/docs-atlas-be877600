@@ -104,7 +104,9 @@
               "api/endpoints/resume",
               "api/endpoints/delete",
               "api/endpoints/update-url",
-              "api/endpoints/events"
+              "api/endpoints/events",
+              "api/endpoints/health",
+              "api/endpoints/history"
             ]
           }
         ]

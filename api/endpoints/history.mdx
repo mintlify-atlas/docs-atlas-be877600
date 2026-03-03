@@ -1,0 +1,131 @@
+---
+title: History
+description: Retrieve completed and removed download history
+---
+
+The `/history` endpoint returns a list of completed and removed downloads from the download history.
+
+## Endpoint
+
+```
+GET /history
+```
+
+## Authentication
+
+Requires Bearer token authentication.
+
+## Parameters
+
+No parameters required.
+
+## Response
+
+Returns an array of historical download records.
+
+<ResponseField name="id" type="string">
+  Unique identifier for the download
+</ResponseField>
+
+<ResponseField name="url" type="string">
+  Original download URL
+</ResponseField>
+
+<ResponseField name="filename" type="string">
+  Name of the downloaded file
+</ResponseField>
+
+<ResponseField name="path" type="string">
+  Full path where the file was saved
+</ResponseField>
+
+<ResponseField name="size" type="integer">
+  Total file size in bytes
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Final status - typically `"complete"` or `"removed"`
+</ResponseField>
+
+<ResponseField name="completed_at" type="string">
+  ISO 8601 timestamp when the download completed
+</ResponseField>
+
+## Example Request
+
+<CodeGroup>
+```bash cURL
+curl http://localhost:1700/history \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:1700/history', {
+  headers: {
+    'Authorization': 'Bearer YOUR_TOKEN'
+  }
+});
+const history = await response.json();
+console.log(history);
+```
+
+```python Python
+import requests
+
+headers = {'Authorization': 'Bearer YOUR_TOKEN'}
+response = requests.get('http://localhost:1700/history', headers=headers)
+print(response.json())
+```
+</CodeGroup>
+
+## Example Response
+
+```json
+[
+  {
+    "id": "abc123",
+    "url": "https://example.com/file1.zip",
+    "filename": "file1.zip",
+    "path": "/home/user/Downloads/file1.zip",
+    "size": 104857600,
+    "status": "complete",
+    "completed_at": "2024-03-15T10:30:00Z"
+  },
+  {
+    "id": "def456",
+    "url": "https://example.com/file2.zip",
+    "filename": "file2.zip",
+    "path": "/home/user/Downloads/file2.zip",
+    "size": 52428800,
+    "status": "complete",
+    "completed_at": "2024-03-15T09:15:00Z"
+  }
+]
+```
+
+## Status Codes
+
+| Code | Description |
+|------|-------------|
+| 200  | History retrieved successfully |
+| 401  | Invalid or missing authentication token |
+| 500  | Server error retrieving history |
+
+## Use Cases
+
+- **Audit Trail**: Review what files have been downloaded
+- **Statistics**: Calculate total downloaded bytes or download counts
+- **Reporting**: Generate download activity reports
+- **Cleanup Verification**: Confirm removed downloads are no longer active
+
+## Notes
+
+- History persists across server restarts (stored in SQLite database)
+- Completed downloads remain in history indefinitely
+- Removed downloads appear in history with status `"removed"`
+- Use [List](/api/endpoints/list) to see active/paused/queued downloads instead
+
+## Related Endpoints
+
+- [List](/api/endpoints/list) - View active downloads
+- [Delete](/api/endpoints/delete) - Remove a download (moves to history)

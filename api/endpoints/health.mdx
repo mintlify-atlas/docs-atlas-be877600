@@ -1,0 +1,95 @@
+---
+title: Health Check
+description: Check if the Surge server is running and responsive
+---
+
+The `/health` endpoint provides a simple health check to verify that the Surge server is running and accepting requests.
+
+## Endpoint
+
+```
+GET /health
+```
+
+## Authentication
+
+This endpoint does not require authentication.
+
+## Parameters
+
+No parameters required.
+
+## Response
+
+<ResponseField name="status" type="string">
+  Health status - always returns `"ok"` when the server is running
+</ResponseField>
+
+<ResponseField name="port" type="integer">
+  The port number the server is listening on
+</ResponseField>
+
+## Example Request
+
+<CodeGroup>
+```bash cURL
+curl http://localhost:1700/health
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:1700/health');
+const data = await response.json();
+console.log(data);
+```
+
+```python Python
+import requests
+
+response = requests.get('http://localhost:1700/health')
+print(response.json())
+```
+</CodeGroup>
+
+## Example Response
+
+```json
+{
+  "status": "ok",
+  "port": 1700
+}
+```
+
+## Status Codes
+
+| Code | Description |
+|------|-------------|
+| 200  | Server is healthy and running |
+
+## Use Cases
+
+- **Monitoring**: Use in health check scripts or monitoring systems to verify the server is running
+- **Load Balancers**: Configure load balancers to use this endpoint for health checks
+- **Container Orchestration**: Use as a liveness/readiness probe in Docker or Kubernetes
+- **Startup Verification**: Verify the server has started successfully before sending other requests
+
+## Example: Health Check Script
+
+```bash
+#!/bin/bash
+# health-check.sh - Verify Surge server is running
+
+SURGE_HOST=${SURGE_HOST:-localhost:1700}
+
+if curl -sf "http://$SURGE_HOST/health" > /dev/null; then
+  echo "✓ Surge server is healthy"
+  exit 0
+else
+  echo "✗ Surge server is not responding"
+  exit 1
+fi
+```
+
+## Related Endpoints
+
+- [List](/api/endpoints/list) - Check download status
+- [Events](/api/endpoints/events) - Monitor server events

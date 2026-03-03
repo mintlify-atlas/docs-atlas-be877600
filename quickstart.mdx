@@ -67,10 +67,11 @@ This guide will walk you through downloading your first file with Surge in under
     surge https://example.com/file.zip --output ~/Downloads
     ```
     
-    Or set a default download directory in your settings file at `~/.config/surge/settings.toml`:
-    ```toml
-    [general]
-    default_download_dir = "/home/user/Downloads"
+    Or set a default download directory in your settings file at `~/.config/surge/settings.json`:
+    ```json
+    {
+      "default_download_dir": "/home/user/Downloads"
+    }
     ```
   </Step>
 
