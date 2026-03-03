@@ -1,0 +1,135 @@
+{
+  "projectType": "cli-tool",
+  "projectName": "Surge",
+  "projectDescription": "Blazing fast TUI download manager built in Go for power users",
+  "theme": "aspen",
+  "primaryColor": "#6366f1",
+  "lightColor": "#818cf8",
+  "darkColor": "#4f46e5",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/architecture",
+              "concepts/modes",
+              "concepts/optimizations"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/tui-mode",
+              "guides/server-mode",
+              "guides/remote-connection",
+              "guides/docker",
+              "guides/browser-extension",
+              "guides/configuration"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/automation",
+              "advanced/cli-scripting",
+              "advanced/http-api",
+              "advanced/troubleshooting"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "CLI Reference",
+        "groups": [
+          {
+            "group": "Commands",
+            "pages": [
+              "cli/overview",
+              "cli/surge",
+              "cli/add",
+              "cli/ls",
+              "cli/pause",
+              "cli/resume",
+              "cli/rm",
+              "cli/refresh",
+              "cli/server",
+              "cli/connect",
+              "cli/token"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "cli/flags",
+              "cli/environment-variables",
+              "cli/settings-reference"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "HTTP API",
+            "pages": [
+              "api/overview",
+              "api/authentication",
+              "api/endpoints/download",
+              "api/endpoints/list",
+              "api/endpoints/pause",
+              "api/endpoints/resume",
+              "api/endpoints/delete",
+              "api/endpoints/update-url",
+              "api/endpoints/events"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Parallel download connections (up to 32)",
+    "Multiple mirror support with automatic failover",
+    "Beautiful Terminal User Interface (TUI)",
+    "Headless server mode with HTTP API",
+    "Browser extension for Chrome, Firefox, and Edge",
+    "Sequential download mode for streaming media",
+    "Daemon architecture for centralized management",
+    "Work stealing and slow worker optimization",
+    "Remote TUI connection support",
+    "Auto-resume capability"
+  ],
+  "publicApiSurface": [
+    "surge - Launch interactive TUI",
+    "surge server - Start headless server",
+    "surge connect - Connect to remote server",
+    "surge add - Queue downloads via CLI",
+    "surge ls - List downloads",
+    "surge pause - Pause download",
+    "surge resume - Resume download",
+    "surge rm - Remove download",
+    "surge refresh - Update download URL",
+    "surge token - Print API token",
+    "HTTP API: POST /download",
+    "HTTP API: GET /list",
+    "HTTP API: POST /pause",
+    "HTTP API: POST /resume",
+    "HTTP API: DELETE /delete",
+    "HTTP API: PUT /update-url",
+    "HTTP API: GET /events",
+    "HTTP API: GET /health",
+    "HTTP API: GET /history"
+  ]
+}
